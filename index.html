@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ORB Morning Dashboard — NSE/BSE</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0f0d;
+    --surface: #111a15;
+    --surface2: #162019;
+    --border: #1e3028;
+    --green: #00e676;
+    --green-dim: #00c853;
+    --red: #ff1744;
+    --yellow: #ffd600;
+    --text: #e8f5e9;
+    --muted: #546e5a;
+    --accent: #69f0ae;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid noise texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,230,118,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,230,118,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+
+  /* HEADER */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 24px 0 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--green);
+  }
+  .logo span { color: var(--text); }
+  .tagline { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .clock-block { text-align: right; }
+  #live-time { font-family: 'Space Mono', monospace; font-size: 26px; color: var(--accent); letter-spacing: 2px; }
+  #live-date { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* STATUS BAR */
+  .status-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .status-pill {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 1.5s infinite; }
+  .dot.yellow { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+  .dot.red { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* COUNTDOWN */
+  #countdown-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .countdown-label { font-size: 12px; color: var(--muted); font-family: 'Space Mono', monospace; white-space: nowrap; }
+  .progress-wrap { flex: 1; min-width: 120px; background: var(--border); border-radius: 4px; height: 6px; }
+  #progress-fill { height: 6px; border-radius: 4px; background: linear-gradient(90deg, var(--green), var(--accent)); width: 0%; transition: width 1s linear; }
+  #countdown-text { font-family: 'Space Mono', monospace; font-size: 16px; color: var(--green); white-space: nowrap; }
+  .orb-signal {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .signal-wait { background: rgba(255,214,0,0.1); color: var(--yellow); border: 1px solid rgba(255,214,0,0.3); }
+  .signal-ready { background: rgba(0,230,118,0.1); color: var(--green); border: 1px solid rgba(0,230,118,0.3); }
+  .signal-trade { background: rgba(0,230,118,0.2); color: var(--green); border: 1px solid var(--green); animation: pulse 1s infinite; }
+  .signal-exit { background: rgba(255,23,68,0.1); color: var(--red); border: 1px solid rgba(255,23,68,0.3); }
+
+  /* GRID LAYOUT */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media(max-width:680px){ .grid { grid-template-columns: 1fr; } }
+
+  /* CARD */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--green), transparent);
+  }
+  .card-title {
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .icon { font-size: 14px; }
+  .full-width { grid-column: 1 / -1; }
+
+  /* INDEX CARDS */
+  .indices { display: flex; gap: 12px; flex-wrap: wrap; }
+  .index-item {
+    flex: 1;
+    min-width: 100px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+  .index-name { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; margin-bottom: 6px; }
+  .index-val { font-size: 18px; font-weight: 800; color: var(--text); }
+  .index-chg { font-size: 11px; font-family: 'Space Mono', monospace; margin-top: 4px; }
+  .up { color: var(--green); }
+  .down { color: var(--red); }
+  .neutral { color: var(--muted); }
+
+  /* WATCHLIST TABLE */
+  .watch-table { width: 100%; border-collapse: collapse; }
+  .watch-table th {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+  }
+  .watch-table td {
+    padding: 10px 8px;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(30,48,40,0.5);
+    vertical-align: middle;
+  }
+  .watch-table tr:last-child td { border-bottom: none; }
+  .stock-name { font-weight: 600; color: var(--text); }
+  .stock-sector { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; margin-top: 2px; }
+  .price-col { font-family: 'Space Mono', monospace; font-size: 13px; }
+  .range-bar-wrap { width: 80px; }
+  .range-bar { height: 4px; background: var(--border); border-radius: 2px; position: relative; margin-top: 4px; }
+  .range-fill { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--green-dim), var(--green)); }
+  .badge {
+    font-size: 9px;
+    font-family: 'Space Mono', monospace;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .badge-strong { background: rgba(0,230,118,0.15); color: var(--green); border: 1px solid rgba(0,230,118,0.3); }
+  .badge-watch { background: rgba(255,214,0,0.1); color: var(--yellow); border: 1px solid rgba(255,214,0,0.3); }
+  .badge-avoid { background: rgba(255,23,68,0.1); color: var(--red); border: 1px solid rgba(255,23,68,0.3); }
+
+  /* NEWS */
+  .news-list { display: flex; flex-direction: column; gap: 10px; }
+  .news-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .news-item:hover { border-color: var(--green); }
+  .news-headline { font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--text); }
+  .news-meta { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 5px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .news-tag {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+  }
+  .tag-bull { background: rgba(0,230,118,0.1); color: var(--green); }
+  .tag-bear { background: rgba(255,23,68,0.1); color: var(--red); }
+  .tag-neutral { background: rgba(84,110,90,0.2); color: var(--muted); }
+
+  /* AI ANALYSIS */
+  #ai-output {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    white-space: pre-wrap;
+    min-height: 80px;
+  }
+  .ai-loading { color: var(--muted); animation: pulse 1.5s infinite; }
+
+  /* JOURNAL */
+  .journal-form { display: flex; flex-direction: column; gap: 10px; }
+  .journal-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .journal-row input, .journal-row select {
+    flex: 1;
+    min-width: 80px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .journal-row input:focus, .journal-row select:focus { border-color: var(--green); }
+  .journal-row select option { background: var(--surface); }
+  .btn {
+    background: var(--green);
+    color: var(--bg);
+    border: none;
+    border-radius: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 9px 18px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn-outline {
+    background: transparent;
+    color: var(--green);
+    border: 1px solid var(--green);
+  }
+  .journal-entries { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
+  .journal-entry {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .pnl-pos { color: var(--green); font-weight: 700; }
+  .pnl-neg { color: var(--red); font-weight: 700; }
+
+  /* ORB RULES */
+  .rules-list { display: flex; flex-direction: column; gap: 8px; }
+  .rule-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .rule-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+    font-weight: 700;
+    min-width: 20px;
+    margin-top: 1px;
+  }
+
+  /* REFRESH BTN */
+  .refresh-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-left: auto;
+    display: block;
+    margin-bottom: 10px;
+    transition: all 0.2s;
+  }
+  .refresh-btn:hover { border-color: var(--green); color: var(--green); }
+
+  /* FOOTER */
+  footer {
+    margin-top: 40px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.8;
+  }
+  footer strong { color: var(--red); }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- HEADER -->
+  <header>
+    <div>
+      <div class="logo">ORB<span>Dashboard</span></div>
+      <div class="tagline">// NSE/BSE INTRADAY · OPENING RANGE BREAKOUT</div>
+    </div>
+    <div class="clock-block">
+      <div id="live-time">--:--:--</div>
+      <div id="live-date">--</div>
+    </div>
+  </header>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar">
+    <div class="status-pill"><div class="dot green" id="market-dot"></div><span id="market-status">Checking market...</span></div>
+    <div class="status-pill"><div class="dot yellow"></div><span>NSE · BSE · Equity</span></div>
+    <div class="status-pill"><div class="dot" style="background:var(--accent)"></div><span>ORB Strategy Active</span></div>
+  </div>
+
+  <!-- COUNTDOWN -->
+  <div id="countdown-bar">
+    <div class="countdown-label">⏱ ORB WINDOW</div>
+    <div class="progress-wrap"><div id="progress-fill"></div></div>
+    <div id="countdown-text">--:--</div>
+    <div class="orb-signal signal-wait" id="orb-signal">WAIT</div>
+  </div>
+
+  <!-- INDICES -->
+  <div class="card full-width" style="margin-bottom:16px;">
+    <div class="card-title"><span class="icon">📊</span> LIVE INDICES (auto-refreshes)</div>
+    <div class="indices" id="indices-wrap">
+      <div class="index-item"><div class="index-name">NIFTY 50</div><div class="index-val" id="nifty-val">—</div><div class="index-chg neutral" id="nifty-chg">loading...</div></div>
+      <div class="index-item"><div class="index-name">SENSEX</div><div class="index-val" id="sensex-val">—</div><div class="index-chg neutral" id="sensex-chg">loading...</div></div>
+      <div class="index-item"><div class="index-name">NIFTY BANK</div><div class="index-val" id="banknifty-val">—</div><div class="index-chg neutral" id="banknifty-chg">loading...</div></div>
+      <div class="index-item"><div class="index-name">NIFTY MID</div><div class="index-val" id="midcap-val">—</div><div class="index-chg neutral" id="midcap-chg">loading...</div></div>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- ORB WATCHLIST -->
+    <div class="card full-width">
+      <div class="card-title"><span class="icon">🎯</span> TODAY'S ORB WATCHLIST <span style="margin-left:auto;font-size:10px;color:var(--muted)">Under ₹500 · High Volume</span></div>
+      <table class="watch-table" id="watchlist-table">
+        <thead>
+          <tr>
+            <th>Stock</th>
+            <th>Price Range</th>
+            <th>ORB Level</th>
+            <th>Target</th>
+            <th>SL</th>
+            <th>Signal</th>
+          </tr>
+        </thead>
+        <tbody id="watchlist-body">
+          <tr><td colspan="6" style="color:var(--muted);font-family:'Space Mono',monospace;font-size:12px;padding:20px 8px;">Loading watchlist...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- NEWS -->
+    <div class="card">
+      <div class="card-title"><span class="icon">📰</span> MARKET NEWS TODAY</div>
+      <button class="refresh-btn" onclick="loadNews()">↻ Refresh</button>
+      <div class="news-list" id="news-list">
+        <div style="color:var(--muted);font-family:'Space Mono',monospace;font-size:12px;">Loading news...</div>
+      </div>
+    </div>
+
+    <!-- AI ANALYSIS -->
+    <div class="card">
+      <div class="card-title"><span class="icon">🤖</span> AI MORNING BRIEFING</div>
+      <button class="refresh-btn" onclick="loadAIAnalysis()">↻ Regenerate</button>
+      <div id="ai-output" class="ai-loading">Analyzing market conditions...</div>
+    </div>
+
+    <!-- ORB RULES REMINDER -->
+    <div class="card">
+      <div class="card-title"><span class="icon">📋</span> TODAY'S ORB RULES</div>
+      <div class="rules-list">
+        <div class="rule-item"><div class="rule-num">01</div><div>Watch only from <strong>9:15–9:30 AM</strong>. Note High & Low of first candle.</div></div>
+        <div class="rule-item"><div class="rule-num">02</div><div>Enter only if price <strong>closes above</strong> the 15-min High with volume.</div></div>
+        <div class="rule-item"><div class="rule-num">03</div><div>Set SL just below breakout level. Target = <strong>1.5x–2x risk</strong>.</div></div>
+        <div class="rule-item"><div class="rule-num">04</div><div>Risk max <strong>₹200–300 per trade</strong>. Max 2 trades today.</div></div>
+        <div class="rule-item"><div class="rule-num">05</div><div>Exit everything before <strong>2:45 PM</strong>. No overnight holds.</div></div>
+      </div>
+    </div>
+
+    <!-- TRADE JOURNAL -->
+    <div class="card full-width">
+      <div class="card-title"><span class="icon">📓</span> TODAY'S TRADE JOURNAL</div>
+      <div class="journal-form">
+        <div class="journal-row">
+          <input type="text" id="j-stock" placeholder="Stock (e.g. SAIL)" maxlength="20"/>
+          <input type="number" id="j-entry" placeholder="Entry ₹" step="0.05"/>
+          <input type="number" id="j-exit" placeholder="Exit ₹" step="0.05"/>
+          <input type="number" id="j-qty" placeholder="Qty" min="1"/>
+          <select id="j-result">
+            <option value="">Result</option>
+            <option value="profit">✅ Profit</option>
+            <option value="loss">❌ Loss</option>
+            <option value="breakeven">➡️ Breakeven</option>
+          </select>
+        </div>
+        <div class="journal-row">
+          <input type="text" id="j-note" placeholder="Note (why did you enter? what happened?)" style="flex:3"/>
+          <button class="btn" onclick="addJournalEntry()">+ Log Trade</button>
+          <button class="btn btn-outline" onclick="exportJournal()">⬇ Export</button>
+        </div>
+      </div>
+      <div class="journal-entries" id="journal-entries">
+        <div style="color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;padding:10px 0;">No trades logged today. Start trading!</div>
+      </div>
+      <div id="journal-summary" style="margin-top:12px;font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);"></div>
+    </div>
+
+  </div>
+
+  <footer>
+    <strong>⚠️ DISCLAIMER:</strong> This dashboard is for <strong>educational purposes only</strong>. Not SEBI registered advice.<br/>
+    Always verify on Groww before placing any trade. Past patterns ≠ future returns. Trade at your own risk.<br/><br/>
+    Built for NSE/BSE Intraday · ORB Strategy · Beginner Friendly
+  </footer>
+
+</div>
+
+<script>
+// ── CLOCK ──────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const h = String(ist.getHours()).padStart(2,'0');
+  const m = String(ist.getMinutes()).padStart(2,'0');
+  const s = String(ist.getSeconds()).padStart(2,'0');
+  document.getElementById('live-time').textContent = `${h}:${m}:${s}`;
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('live-date').textContent =
+    `${days[ist.getDay()]}, ${ist.getDate()} ${months[ist.getMonth()]} ${ist.getFullYear()} · IST`;
+  updateMarketStatus(ist);
+  updateCountdown(ist);
+}
+
+// ── MARKET STATUS ──────────────────────────────────────────
+function updateMarketStatus(ist) {
+  const totalMins = ist.getHours() * 60 + ist.getMinutes();
+  const day = ist.getDay();
+  const dot = document.getElementById('market-dot');
+  const status = document.getElementById('market-status');
+  if (day === 0 || day === 6) {
+    dot.className = 'dot red'; status.textContent = 'Market CLOSED (Weekend)'; return;
+  }
+  if (totalMins >= 555 && totalMins < 915) { // 9:15 to 15:15
+    dot.className = 'dot green'; status.textContent = 'Market OPEN · NSE/BSE Live';
+  } else if (totalMins >= 900 && totalMins < 915) {
+    dot.className = 'dot yellow'; status.textContent = 'Pre-Open Session';
+  } else {
+    dot.className = 'dot red'; status.textContent = 'Market CLOSED';
+  }
+}
+
+// ── COUNTDOWN ──────────────────────────────────────────────
+function updateCountdown(ist) {
+  const h = ist.getHours(), m = ist.getMinutes(), s = ist.getSeconds();
+  const totalSecs = h * 3600 + m * 60 + s;
+  const open = 9 * 3600 + 15 * 60;
+  const orb = 9 * 3600 + 30 * 60;
+  const trade = 14 * 3600 + 45 * 60;
+  const close = 15 * 3600 + 15 * 60;
+
+  const ct = document.getElementById('countdown-text');
+  const pf = document.getElementById('progress-fill');
+  const sig = document.getElementById('orb-signal');
+
+  if (totalSecs < open) {
+    const diff = open - totalSecs;
+    ct.textContent = formatTime(diff) + ' to open';
+    pf.style.width = '0%';
+    sig.className = 'orb-signal signal-wait'; sig.textContent = 'PRE-MARKET';
+  } else if (totalSecs >= open && totalSecs < orb) {
+    const diff = orb - totalSecs;
+    const pct = ((totalSecs - open) / (orb - open)) * 100;
+    ct.textContent = formatTime(diff) + ' to ORB';
+    pf.style.width = pct + '%';
+    sig.className = 'orb-signal signal-ready'; sig.textContent = 'MARK RANGE';
+  } else if (totalSecs >= orb && totalSecs < trade) {
+    const diff = trade - totalSecs;
+    ct.textContent = formatTime(diff) + ' left';
+    pf.style.width = '100%';
+    sig.className = 'orb-signal signal-trade'; sig.textContent = '🟢 TRADE NOW';
+  } else if (totalSecs >= trade && totalSecs < close) {
+    ct.textContent = 'EXIT ZONE';
+    pf.style.width = '100%';
+    sig.className = 'orb-signal signal-exit'; sig.textContent = '⚠️ EXIT SOON';
+  } else {
+    ct.textContent = 'Closed';
+    pf.style.width = '0%';
+    sig.className = 'orb-signal signal-wait'; sig.textContent = 'CLOSED';
+  }
+}
+
+function formatTime(secs) {
+  const m = Math.floor(secs / 60), s = secs % 60;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── INDICES (Yahoo Finance via allorigins proxy) ────────────
+async function loadIndices() {
+  const symbols = [
+    { id: 'nifty', yahoo: '%5ENSEI', name: 'NIFTY', valId: 'nifty-val', chgId: 'nifty-chg' },
+    { id: 'sensex', yahoo: '%5EBSESN', name: 'SENSEX', valId: 'sensex-val', chgId: 'sensex-chg' },
+    { id: 'banknifty', yahoo: '%5ENSEBANK', name: 'BANKNIFTY', valId: 'banknifty-val', chgId: 'banknifty-chg' },
+    { id: 'midcap', yahoo: '%5ENSMIDCP', name: 'MIDCAP', valId: 'midcap-val', chgId: 'midcap-chg' },
+  ];
+  for (const s of symbols) {
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${s.yahoo}?interval=1d&range=1d`;
+      const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+      const res = await fetch(proxy);
+      const data = await res.json();
+      const parsed = JSON.parse(data.contents);
+      const meta = parsed.chart.result[0].meta;
+      const price = meta.regularMarketPrice;
+      const prev = meta.chartPreviousClose;
+      const chg = price - prev;
+      const pct = ((chg / prev) * 100).toFixed(2);
+      document.getElementById(s.valId).textContent = price.toLocaleString('en-IN', {maximumFractionDigits:2});
+      const chgEl = document.getElementById(s.chgId);
+      chgEl.textContent = `${chg >= 0 ? '+' : ''}${chg.toFixed(2)} (${pct}%)`;
+      chgEl.className = `index-chg ${chg >= 0 ? 'up' : 'down'}`;
+    } catch(e) {
+      document.getElementById(s.valId).textContent = 'N/A';
+      document.getElementById(s.chgId).textContent = 'unavailable';
+    }
+  }
+}
+loadIndices();
+setInterval(loadIndices, 60000);
+
+// ── WATCHLIST ───────────────────────────────────────────────
+const WATCHLIST = [
+  { name: 'SAIL', sector: 'Steel', range: '₹100–130', orb: '₹128', target: '₹134', sl: '₹125', signal: 'strong' },
+  { name: 'IRFC', sector: 'Finance', range: '₹140–170', orb: '₹162', target: '₹168', sl: '₹159', signal: 'watch' },
+  { name: 'NHPC', sector: 'Power', range: '₹80–100', orb: '₹94', target: '₹98', sl: '₹92', signal: 'strong' },
+  { name: 'SUZLON', sector: 'Energy', range: '₹55–75', orb: '₹71', target: '₹75', sl: '₹69', signal: 'watch' },
+  { name: 'BANKBARODA', sector: 'Banking', range: '₹200–250', orb: '₹240', target: '₹250', sl: '₹236', signal: 'strong' },
+  { name: 'RVNL', sector: 'Railways', range: '₹180–220', orb: '₹210', target: '₹218', sl: '₹207', signal: 'watch' },
+];
+
+function loadWatchlist() {
+  const tbody = document.getElementById('watchlist-body');
+  tbody.innerHTML = WATCHLIST.map(s => `
+    <tr>
+      <td><div class="stock-name">${s.name}</div><div class="stock-sector">${s.sector}</div></td>
+      <td class="price-col">${s.range}</td>
+      <td class="price-col up">${s.orb}</td>
+      <td class="price-col up">${s.target}</td>
+      <td class="price-col down">${s.sl}</td>
+      <td><span class="badge ${s.signal === 'strong' ? 'badge-strong' : s.signal === 'watch' ? 'badge-watch' : 'badge-avoid'}">${s.signal === 'strong' ? '✓ STRONG' : s.signal === 'watch' ? '◎ WATCH' : '✕ AVOID'}</span></td>
+    </tr>
+  `).join('');
+}
+loadWatchlist();
+
+// ── NEWS ─────────────────────────────────────────────────────
+async function loadNews() {
+  const container = document.getElementById('news-list');
+  container.innerHTML = '<div style="color:var(--muted);font-family:\'Space Mono\',monospace;font-size:12px;">Fetching news...</div>';
+  try {
+    const feeds = [
+      'https://economictimes.indiatimes.com/markets/stocks/rss.cms',
+      'https://www.moneycontrol.com/rss/MCtopnews.xml'
+    ];
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(feeds[0])}`;
+    const res = await fetch(proxy);
+    const data = await res.json();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(data.contents, 'text/xml');
+    const items = Array.from(xml.querySelectorAll('item')).slice(0, 6);
+    if (items.length === 0) throw new Error('No items');
+    container.innerHTML = items.map(item => {
+      const title = item.querySelector('title')?.textContent || '';
+      const pubDate = item.querySelector('pubDate')?.textContent || '';
+      const link = item.querySelector('link')?.textContent || '#';
+      const sentiment = title.match(/fall|drop|crash|loss|decline|weak|sell/i) ? 'bear' :
+                        title.match(/rise|gain|rally|surge|buy|strong|high|growth/i) ? 'bull' : 'neutral';
+      const d = new Date(pubDate);
+      const timeStr = isNaN(d) ? '' : d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+      return `<div class="news-item" onclick="window.open('${link}','_blank')">
+        <div style="display:flex;gap:8px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap">
+          <div class="news-headline">${title.slice(0,120)}${title.length>120?'...':''}</div>
+          <span class="news-tag tag-${sentiment}">${sentiment.toUpperCase()}</span>
+        </div>
+        <div class="news-meta"><span>ET Markets</span>${timeStr ? `<span>${timeStr} IST</span>` : ''}</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    container.innerHTML = `
+      <div class="news-item">
+        <div class="news-headline">⚠️ Live news unavailable — Check manually</div>
+        <div class="news-meta">Visit these sites before 9:15 AM:</div>
+      </div>
+      <div class="news-item" onclick="window.open('https://economictimes.indiatimes.com/markets','_blank')"><div class="news-headline">→ Economic Times Markets</div></div>
+      <div class="news-item" onclick="window.open('https://www.moneycontrol.com/news/business/markets/','_blank')"><div class="news-headline">→ Moneycontrol Markets</div></div>
+      <div class="news-item" onclick="window.open('https://chartink.com/screener/open-high-low-scanner','_blank')"><div class="news-headline">→ Chartink ORB Scanner</div></div>
+    `;
+  }
+}
+loadNews();
+
+// ── AI ANALYSIS ──────────────────────────────────────────────
+async function loadAIAnalysis() {
+  const out = document.getElementById('ai-output');
+  out.className = 'ai-loading';
+  out.textContent = 'Analyzing market conditions for today...';
+  const now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const prompt = `You are an expert Indian stock market analyst helping a beginner intraday trader using the ORB (Opening Range Breakout) strategy on NSE/BSE equity segment.
+
+Today is ${now} IST. The trader has ₹10,000 capital and uses Groww for trading.
+
+Give a concise morning briefing (max 180 words) covering:
+1. Overall market sentiment today (bullish/bearish/sideways) based on global cues
+2. Key levels to watch on Nifty 50
+3. 2-3 sectors showing momentum
+4. One ORB tip for today
+5. One risk to be careful about today
+
+Keep it practical, simple, and beginner-friendly. Use plain text, no markdown. Start with "MORNING BRIEFING —"`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await response.json();
+    const text = data.content?.find(b => b.type === 'text')?.text || 'Analysis unavailable.';
+    out.className = '';
+    out.textContent = text;
+  } catch(e) {
+    out.className = '';
+    out.textContent = 'AI briefing unavailable right now.\n\nManual checklist:\n→ Check SGX Nifty / Gift Nifty for market direction\n→ Check US markets (Dow, Nasdaq) overnight move\n→ Check FII/DII data on NSE website\n→ Note any big corporate results today\n→ Wait for first 15-min candle before any trade';
+  }
+}
+loadAIAnalysis();
+
+// ── JOURNAL ──────────────────────────────────────────────────
+let trades = JSON.parse(localStorage.getItem('orb_trades_' + new Date().toDateString()) || '[]');
+
+function renderJournal() {
+  const container = document.getElementById('journal-entries');
+  const summary = document.getElementById('journal-summary');
+  if (trades.length === 0) {
+    container.innerHTML = '<div style="color:var(--muted);font-family:\'Space Mono\',monospace;font-size:11px;padding:10px 0;">No trades logged today. Start trading!</div>';
+    summary.textContent = '';
+    return;
+  }
+  let totalPnL = 0;
+  container.innerHTML = trades.map((t, i) => {
+    const pnl = ((t.exit - t.entry) * t.qty).toFixed(2);
+    totalPnL += parseFloat(pnl);
+    return `<div class="journal-entry">
+      <span><strong>${t.stock}</strong> · ${t.qty} qty</span>
+      <span>Entry: ₹${t.entry} → Exit: ₹${t.exit}</span>
+      <span class="${pnl >= 0 ? 'pnl-pos' : 'pnl-neg'}">${pnl >= 0 ? '+' : ''}₹${pnl}</span>
+      <span style="color:var(--muted);font-size:10px">${t.note || ''}</span>
+      <span style="cursor:pointer;color:var(--red);font-size:10px" onclick="removeTrade(${i})">✕</span>
+    </div>`;
+  }).join('');
+  summary.innerHTML = `Total P&L today: <span class="${totalPnL >= 0 ? 'pnl-pos' : 'pnl-neg'}">${totalPnL >= 0 ? '+' : ''}₹${totalPnL.toFixed(2)}</span> · ${trades.length} trade(s) logged`;
+}
+
+function addJournalEntry() {
+  const stock = document.getElementById('j-stock').value.trim().toUpperCase();
+  const entry = parseFloat(document.getElementById('j-entry').value);
+  const exit = parseFloat(document.getElementById('j-exit').value);
+  const qty = parseInt(document.getElementById('j-qty').value);
+  const note = document.getElementById('j-note').value.trim();
+  if (!stock || isNaN(entry) || isNaN(exit) || isNaN(qty)) {
+    alert('Please fill Stock, Entry, Exit, and Qty fields.');
+    return;
+  }
+  trades.push({ stock, entry, exit, qty, note, time: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }) });
+  localStorage.setItem('orb_trades_' + new Date().toDateString(), JSON.stringify(trades));
+  ['j-stock','j-entry','j-exit','j-qty','j-note'].forEach(id => document.getElementById(id).value = '');
+  renderJournal();
+}
+
+function removeTrade(i) {
+  trades.splice(i, 1);
+  localStorage.setItem('orb_trades_' + new Date().toDateString(), JSON.stringify(trades));
+  renderJournal();
+}
+
+function exportJournal() {
+  const rows = [['Stock','Entry','Exit','Qty','P&L','Note','Time']];
+  trades.forEach(t => rows.push([t.stock, t.entry, t.exit, t.qty, ((t.exit-t.entry)*t.qty).toFixed(2), t.note, t.time]));
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `ORB_Journal_${new Date().toDateString()}.csv`;
+  a.click();
+}
+
+renderJournal();
+</script>
+</body>
+</html>
