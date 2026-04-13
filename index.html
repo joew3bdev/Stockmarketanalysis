@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>ORB Dashboard — NSE/BSE</title>
+<title>ORBIS — NSE/BSE Intraday</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -556,7 +556,10 @@ service cloud.firestore {
 
       <!-- AI BRIEFING -->
       <div class="card">
-        <div class="card-title"><span>🤖</span> AI STOCK BRIEFING</div>
+        <div class="card-title">
+          <span>🤖</span> AI STOCK BRIEFING
+          <span id="ai-news-badge" style="margin-left:8px;font-size:9px;font-family:'Space Mono',monospace;padding:2px 7px;border-radius:4px;background:rgba(0,230,118,.08);color:var(--muted);border:1px solid var(--border);">📰 no news loaded</span>
+        </div>
         <button class="refresh-btn" onclick="loadAIAnalysis()">↻ Regenerate</button>
         <div id="ai-output" class="ai-loading">Initializing...</div>
       </div>
@@ -1416,9 +1419,17 @@ async function loadNews(){
     const url='https://economictimes.indiatimes.com/markets/stocks/rss.cms?_='+Math.random();
     const xmlStr = await fetchTextViaProxy(url);
     const xml=new DOMParser().parseFromString(xmlStr,'text/xml');
-    const items=Array.from(xml.querySelectorAll('item')).slice(0,6);
+    const items=Array.from(xml.querySelectorAll('item')).slice(0,8);
     if(!items.length)throw new Error('empty');
     let latestTime=null;
+    // Cache headlines for AI briefing
+    latestNewsHeadlines = items.map(item => {
+      const title   = item.querySelector('title')?.textContent||'';
+      const pubDate = item.querySelector('pubDate')?.textContent||'';
+      const d       = new Date(pubDate);
+      const t       = isNaN(d)?'':d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'});
+      return t ? `[${t} IST] ${title}` : title;
+    }).filter(Boolean);
     c.innerHTML=items.map(item=>{
       const title=item.querySelector('title')?.textContent||'';
       const pubDate=item.querySelector('pubDate')?.textContent||'';
@@ -1456,63 +1467,82 @@ async function loadNews(){
 // AI BRIEFING — Structured Table Renderer
 // Parses AI response into a proper HTML table
 // ═══════════════════════════════════════════════════════════
-function renderAIBriefingTable(text) {
-  // Escape HTML in the raw text first
-  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// priceMap = livePrices object {STOCKNAME: {price, chg, pct, ...}}
+// AI only decides signal + reason + tip; prices come from live data
+function renderAIBriefingTable(text, priceMap) {
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  priceMap = priceMap || {};
 
-  // Extract title line (first line like "STOCK BRIEFING — ...")
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length);
   let titleLine = '';
   let summaryLines = [];
   const stockBlocks = [];
 
-  // Parse into blocks separated by blank lines in original text
+  // Parse into blocks separated by blank lines
   const rawBlocks = text.split(/\n{2,}/);
   for (const block of rawBlocks) {
     const blockLines = block.split('\n').map(l => l.trim()).filter(l => l.length);
     if (!blockLines.length) continue;
 
-    // Check if block has a stock signal line: "STOCKNAME | ₹price | SIGNAL"
-    const signalLine = blockLines.find(l => /^[A-Z][A-Z0-9&\-\.]+\s*\|\s*₹[\d,\.]+\s*\|\s*(STRONG|WATCH|AVOID)/i.test(l));
+    // Detect stock signal line: "STOCKNAME | ₹price | SIGNAL"
+    // Also accept without ₹ in case AI forgets the symbol
+    const signalLine = blockLines.find(l =>
+      /^[A-Z][A-Z0-9&\-\.]+\s*\|\s*₹?[\d,\.]+\s*\|\s*(STRONG|WATCH|AVOID)/i.test(l)
+    );
     if (signalLine) {
-      const m = signalLine.match(/^([A-Z][A-Z0-9&\-\.]+)\s*\|\s*(₹[\d,\.]+)\s*\|\s*(STRONG|WATCH|AVOID)/i);
+      const m = signalLine.match(/^([A-Z][A-Z0-9&\-\.]+)\s*\|\s*₹?([\d,\.]+)\s*\|\s*(STRONG|WATCH|AVOID)/i);
       if (m) {
         const reasonLine = blockLines.find(l => /^Reason\s*:/i.test(l));
         const tipLine    = blockLines.find(l => /^Tip\s*:/i.test(l));
+        const stockKey   = m[1].toUpperCase();
+
+        // Use live price if available — never trust AI-generated price
+        const liveData   = priceMap[stockKey];
+        let priceDisplay;
+        if (liveData && liveData.price) {
+          const chgSign  = liveData.chg >= 0 ? '+' : '';
+          const chgColor = liveData.chg >= 0 ? 'var(--green)' : 'var(--red)';
+          priceDisplay   = `<span class="ai-stock-price">₹${liveData.price.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+            <span style="font-family:'Space Mono',monospace;font-size:10px;color:${chgColor};margin-left:4px;">${chgSign}${liveData.pct}%</span>`;
+        } else {
+          // Fallback to AI price if live data not available
+          priceDisplay = `<span class="ai-stock-price">₹${esc(m[2])}</span>`;
+        }
+
         stockBlocks.push({
-          stock:  m[1].toUpperCase(),
-          price:  m[2],
-          signal: m[3].toUpperCase(),
-          reason: reasonLine ? reasonLine.replace(/^Reason\s*:\s*/i,'') : '',
-          tip:    tipLine    ? tipLine.replace(/^Tip\s*:\s*/i,'')    : ''
+          stock:        stockKey,
+          priceDisplay: priceDisplay,
+          signal:       m[3].toUpperCase(),
+          reason:       reasonLine ? reasonLine.replace(/^Reason\s*:\s*/i,'') : '',
+          tip:          tipLine    ? tipLine.replace(/^Tip\s*:\s*/i,'')       : ''
         });
         continue;
       }
     }
 
-    // Title line (contains "STOCK BRIEFING" or "BRIEFING")
+    // Title line
     if (/STOCK BRIEFING|BRIEFING/i.test(blockLines[0]) && !signalLine) {
       titleLine = blockLines[0];
       continue;
     }
 
-    // Market summary (everything that isn't a stock block or title)
+    // Everything else → market summary
     summaryLines.push(...blockLines);
   }
 
-  // Build the title
+  // ── Build HTML ──
   let html = '';
+
   if (titleLine) {
-    html += `<div class="ai-briefing-title">📊 ${esc(titleLine)}</div>`;
+    const now = new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'});
+    html += `<div class="ai-briefing-title">📊 ${esc(titleLine)} <span style="float:right;font-weight:400;color:var(--muted);">Live prices · ${esc(now)}</span></div>`;
   }
 
-  // Build the table if we have stock rows
   if (stockBlocks.length) {
     html += `<table class="ai-brief-table">
       <thead>
         <tr>
           <th>Stock</th>
-          <th>Price</th>
+          <th>Live Price</th>
           <th>Signal</th>
           <th>Analysis</th>
         </tr>
@@ -1527,7 +1557,7 @@ function renderAIBriefingTable(text) {
       const tipHtml    = row.tip    ? `<div class="ai-tip-text">💡 ${esc(row.tip)}</div>`    : '';
       html += `<tr>
         <td><span class="ai-stock-name">${esc(row.stock)}</span></td>
-        <td><span class="ai-stock-price">${esc(row.price)}</span></td>
+        <td>${row.priceDisplay}</td>
         <td><span class="ai-signal-badge ${badgeClass}">${row.signal}</span></td>
         <td>${reasonHtml}${tipHtml}</td>
       </tr>`;
@@ -1536,9 +1566,8 @@ function renderAIBriefingTable(text) {
     html += `</tbody></table>`;
   }
 
-  // Market summary block
+  // Market summary
   if (summaryLines.length) {
-    // Filter out lines that were part of stock blocks already
     const cleanSummary = summaryLines
       .filter(l => !/^[A-Z][A-Z0-9&\-\.]+\s*\|/.test(l) && !/^(Reason|Tip)\s*:/i.test(l))
       .join(' ')
@@ -1549,7 +1578,7 @@ function renderAIBriefingTable(text) {
     }
   }
 
-  // Fallback: if no structured data found, render as preformatted text
+  // Fallback
   if (!stockBlocks.length && !titleLine) {
     html = `<div class="ai-summary-box" style="white-space:pre-wrap;">${esc(text)}</div>`;
   }
@@ -1572,6 +1601,39 @@ async function loadAIAnalysis(){
   const capLine = dailyCapital
     ? `Capital today: ₹${dailyCapital.toLocaleString('en-IN')} | Max risk/trade: ₹${Math.floor(dailyCapital*.02).toLocaleString('en-IN')}`
     : 'Capital: not set';
+  // Fetch fresh news if cache is empty
+  if (!latestNewsHeadlines.length) {
+    try {
+      const url = 'https://economictimes.indiatimes.com/markets/stocks/rss.cms?_='+Math.random();
+      const xmlStr = await fetchTextViaProxy(url);
+      const xml = new DOMParser().parseFromString(xmlStr,'text/xml');
+      latestNewsHeadlines = Array.from(xml.querySelectorAll('item')).slice(0,8).map(item => {
+        const title   = item.querySelector('title')?.textContent||'';
+        const pubDate = item.querySelector('pubDate')?.textContent||'';
+        const d       = new Date(pubDate);
+        const t       = isNaN(d)?'':d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'});
+        return t ? `[${t} IST] ${title}` : title;
+      }).filter(Boolean);
+    } catch(e) { /* continue without news if fetch fails */ }
+  }
+  const newsSection = latestNewsHeadlines.length
+    ? `\nLATEST MARKET NEWS (ET Markets — use these to inform your signals):\n${latestNewsHeadlines.map((h,i)=>`${i+1}. ${h}`).join('\n')}`
+    : '';
+  // Update news badge in AI card
+  const newsBadge = document.getElementById('ai-news-badge');
+  if (newsBadge) {
+    if (latestNewsHeadlines.length) {
+      newsBadge.textContent = `📰 ${latestNewsHeadlines.length} headlines loaded`;
+      newsBadge.style.color = 'var(--green)';
+      newsBadge.style.borderColor = 'rgba(0,230,118,.3)';
+      newsBadge.style.background = 'rgba(0,230,118,.08)';
+    } else {
+      newsBadge.textContent = '📰 no news — offline?';
+      newsBadge.style.color = 'var(--yellow)';
+      newsBadge.style.borderColor = 'rgba(255,214,0,.3)';
+      newsBadge.style.background = 'rgba(255,214,0,.06)';
+    }
+  }
   try{
     const res=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
@@ -1579,33 +1641,34 @@ async function loadAIAnalysis(){
       body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1400,messages:[{role:'user',content:
         `You are a concise Indian stock market analyst for a beginner NSE ORB intraday trader using Groww (long equity only, no shorting).
 Time: ${now} | ${capLine}
-TOP WATCHLIST STOCKS:
-${stockLines}
 
-Reply in this EXACT format. Do NOT use markdown, asterisks, dashes, or # headers.
+CURRENT LIVE PRICES (use EXACTLY these prices — do not change or invent prices):
+${stockLines}
+${newsSection}
+
+Reply in this EXACT format. No markdown, no asterisks, no dashes, no # headers.
 
 STOCK BRIEFING — ${now.split(',')[0]}
 
-For EACH stock, output a block exactly like this (blank line between each block):
-[STOCKNAME] | ₹[PRICE] | [STRONG or WATCH or AVOID]
-Reason: one sentence explaining momentum/setup.
-Tip: one specific action for tomorrow's session.
+For EACH stock listed above, output a block like this (blank line between each block):
+[STOCKNAME] | ₹[EXACT PRICE FROM ABOVE] | [STRONG or WATCH or AVOID]
+Reason: one sentence on momentum or setup — reference relevant news if applicable.
+Tip: one specific action for tomorrow.
 
-After all stock blocks, write a 2-sentence market summary on its own paragraph.
+After all stock blocks, write a 2-sentence overall market summary referencing today's key news themes.
 
 Rules:
-- STOCKNAME must be ALL CAPS (e.g. RELIANCE, TCS, INFY)
-- Price must have ₹ symbol
+- Use the EXACT price I provided — copy it as-is, do not round or change it
+- STOCKNAME must be ALL CAPS
 - Signal must be exactly one of: STRONG, WATCH, AVOID
-- Each line on its own line, no extra symbols
-- Keep total reply under 400 words`
+- Keep total reply under 500 words`
       }]})
     });
     const data=await res.json();
     if(data.error) throw new Error(data.error.message);
     const raw = data.content?.find(b=>b.type==='text')?.text || 'No response.';
     out.className='';
-    out.innerHTML = renderAIBriefingTable(raw);
+    out.innerHTML = renderAIBriefingTable(raw, livePrices);
   }catch(e){
     out.className='';
     out.innerHTML=`<div class="no-key-msg">❌ ${e.message}<br/><button onclick="showApiModal()">🔑 Update Key</button></div>`;
@@ -1816,6 +1879,7 @@ const TG_TOKEN_KEY  = 'orb_tg_token';
 const TG_CHATID_KEY = 'orb_tg_chatid';
 let tgLastNewsSent       = 0;      // timestamp — 30 min cooldown between news alerts
 let tgDailyWatchlistSent = false;  // reset each session
+let latestNewsHeadlines  = [];     // cached headlines for AI briefing injection
 
 function getTGConfig() {
   return {
