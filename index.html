@@ -1083,32 +1083,55 @@ function updateCountdown(ist) {
 function fmt(s){return`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;}
 
 // ═══════════════════════════════════════════════════════════
-// PROXY HELPERS — tries 3 CORS proxies in sequence
+// PROXY HELPERS — 5 CORS proxies with per-request timeout
 // ═══════════════════════════════════════════════════════════
+
+// Wraps fetch with an AbortController timeout (ms)
+function fetchWithTimeout(input, init, ms = 7000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(input, { ...init, signal: ctrl.signal })
+    .finally(() => clearTimeout(id));
+}
 
 // For JSON APIs (Yahoo Finance etc.)
 async function fetchViaProxy(url) {
   const proxies = [
+    // 1. corsproxy.io — fast, reliable
     async u => {
-      const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`);
+      const r = await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(u)}`, {}, 7000);
+      if (!r.ok) throw new Error('corsproxy ' + r.status);
+      return r.json();
+    },
+    // 2. allorigins.win
+    async u => {
+      const r = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, {}, 8000);
       if (!r.ok) throw new Error('allorigins ' + r.status);
       const d = await r.json();
       return typeof d.contents === 'string' ? JSON.parse(d.contents) : d.contents;
     },
+    // 3. codetabs
     async u => {
-      const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(u)}`);
-      if (!r.ok) throw new Error('corsproxy ' + r.status);
+      const r = await fetchWithTimeout(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, {}, 7000);
+      if (!r.ok) throw new Error('codetabs ' + r.status);
       return r.json();
     },
+    // 4. thingproxy
     async u => {
-      const r = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`);
-      if (!r.ok) throw new Error('codetabs ' + r.status);
+      const r = await fetchWithTimeout(`https://thingproxy.freeboard.io/fetch/${u}`, {}, 7000);
+      if (!r.ok) throw new Error('thingproxy ' + r.status);
+      return r.json();
+    },
+    // 5. htmldriven proxy
+    async u => {
+      const r = await fetchWithTimeout(`https://cors-anywhere.herokuapp.com/${u}`, { headers:{'X-Requested-With':'XMLHttpRequest'} }, 7000);
+      if (!r.ok) throw new Error('cors-anywhere ' + r.status);
       return r.json();
     },
   ];
   let lastErr;
   for (const proxy of proxies) {
-    try { return await proxy(url); } catch(e) { lastErr = e; }
+    try { return await proxy(url); } catch(e) { lastErr = e; console.warn('Proxy failed:', e.message); }
   }
   throw lastErr;
 }
@@ -1117,25 +1140,30 @@ async function fetchViaProxy(url) {
 async function fetchTextViaProxy(url) {
   const proxies = [
     async u => {
-      const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`);
+      const r = await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(u)}`, {}, 7000);
+      if (!r.ok) throw new Error('corsproxy ' + r.status);
+      return r.text();
+    },
+    async u => {
+      const r = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, {}, 8000);
       if (!r.ok) throw new Error('allorigins ' + r.status);
       const d = await r.json();
       return typeof d.contents === 'string' ? d.contents : '';
     },
     async u => {
-      const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(u)}`);
-      if (!r.ok) throw new Error('corsproxy ' + r.status);
+      const r = await fetchWithTimeout(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, {}, 7000);
+      if (!r.ok) throw new Error('codetabs ' + r.status);
       return r.text();
     },
     async u => {
-      const r = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`);
-      if (!r.ok) throw new Error('codetabs ' + r.status);
+      const r = await fetchWithTimeout(`https://thingproxy.freeboard.io/fetch/${u}`, {}, 7000);
+      if (!r.ok) throw new Error('thingproxy ' + r.status);
       return r.text();
     },
   ];
   let lastErr;
   for (const proxy of proxies) {
-    try { return await proxy(url); } catch(e) { lastErr = e; }
+    try { return await proxy(url); } catch(e) { lastErr = e; console.warn('Text proxy failed:', e.message); }
   }
   throw lastErr;
 }
@@ -1286,7 +1314,21 @@ async function fetchAndRenderWatchlist(tMins, phase) {
     quotes = data?.quoteResponse?.result || [];
   } catch(e) {
     console.error('Watchlist fetch error:', e);
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:16px;color:var(--red);font-family:'Space Mono',monospace;font-size:11px;">⚠ Market data unavailable — proxy timeout. <button onclick="loadDynamicWatchlist()" style="color:var(--accent);background:none;border:none;cursor:pointer;font-family:'Space Mono',monospace;">↻ Retry</button></td></tr>`;
+    let countdown = 15;
+    const autoRetry = () => {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:16px;color:var(--red);font-family:'Space Mono',monospace;font-size:11px;">
+        ⚠ Market data unavailable — all proxies timed out.<br>
+        <span style="color:var(--muted);font-size:10px;">Auto-retry in <span id="retry-cd">${countdown}</span>s &nbsp;|&nbsp;</span>
+        <button onclick="loadDynamicWatchlist()" style="color:var(--accent);background:none;border:none;cursor:pointer;font-family:'Space Mono',monospace;font-size:11px;">↻ Retry now</button>
+      </td></tr>`;
+      const cdEl = document.getElementById('retry-cd');
+      const iv = setInterval(() => {
+        countdown--;
+        if (cdEl) cdEl.textContent = countdown;
+        if (countdown <= 0) { clearInterval(iv); loadDynamicWatchlist(); }
+      }, 1000);
+    };
+    autoRetry();
     return;
   }
 
