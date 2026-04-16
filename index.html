@@ -360,7 +360,7 @@ service cloud.firestore {
   <div class="center-screen">
     <div class="auth-box">
       <div class="auth-title">🔐 Sign In</div>
-      <div class="auth-sub">Enter your credentials to access the ORB Dashboard.</div>
+      <div class="auth-sub">Enter your credentials to access ORBIS.</div>
       <input class="auth-input" type="email" id="login-email" placeholder="Email address" autocomplete="email"/>
       <input class="auth-input" type="password" id="login-password" placeholder="Password" autocomplete="current-password"/>
       <div class="auth-error" id="login-error">Incorrect email or password. Try again.</div>
@@ -392,6 +392,57 @@ service cloud.firestore {
       <input class="auth-input" type="number" id="capital-input" placeholder="Enter amount ₹" min="100" step="500" style="border-color:var(--accent);margin-bottom:10px;"/>
       <button class="auth-btn" onclick="saveDailyCapital()" style="background:var(--accent);">✓ Start Trading</button>
       <button class="auth-btn secondary" onclick="skipCapital()">Skip — no capital tracking today</button>
+    </div>
+  </div>
+
+  <!-- UPSTOX CONNECT MODAL -->
+  <div class="capital-prompt-modal" id="upstox-modal">
+    <div class="capital-box" style="border-color:#7B2FBE;max-width:500px;">
+      <div style="font-size:18px;font-weight:800;color:#a855f7;margin-bottom:6px;">⚡ Connect Upstox Live Data</div>
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:16px;line-height:2;">
+        Real-time NSE/BSE prices — no proxy, no delays.<br/>
+        Free for all Upstox account holders.
+      </div>
+
+      <!-- Step-by-step guide -->
+      <div id="upstox-guide" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:14px;line-height:2.2;background:var(--surface2);border-radius:8px;padding:12px 14px;border:1px solid var(--border);">
+        <strong style="color:var(--text);">Step 1 ·</strong> Open <a href="https://developer.upstox.com" target="_blank" style="color:#a855f7;">developer.upstox.com</a> → Log in with your Upstox account<br/>
+        <strong style="color:var(--text);">Step 2 ·</strong> Click <strong style="color:var(--text);">Create App</strong> → Set Redirect URL to <code style="color:var(--accent);">http://localhost</code> → Save<br/>
+        <strong style="color:var(--text);">Step 3 ·</strong> Copy your <strong style="color:var(--text);">API Key</strong> and <strong style="color:var(--text);">Secret</strong> from the app page<br/>
+        <strong style="color:var(--text);">Step 4 ·</strong> Paste them below → Click <strong style="color:#a855f7;">Login with Upstox</strong> → Approve in browser<br/>
+        <strong style="color:var(--text);">Step 5 ·</strong> Paste the redirect URL back here → Done ✓
+      </div>
+
+      <!-- Tab: Enter credentials -->
+      <div id="upstox-creds-section">
+        <input class="auth-input" id="upstox-api-key" placeholder="API Key (from developer.upstox.com)" autocomplete="off" style="margin-bottom:8px;"/>
+        <input class="auth-input" id="upstox-api-secret" type="password" placeholder="API Secret" autocomplete="off" style="margin-bottom:8px;"/>
+        <button class="auth-btn" style="background:#a855f7;color:#fff;margin-bottom:8px;" onclick="upstoxStartLogin()">⚡ Login with Upstox →</button>
+      </div>
+
+      <!-- Step: Paste redirect URL -->
+      <div id="upstox-code-section" style="display:none;">
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--yellow);margin-bottom:10px;line-height:1.8;">
+          ✅ Browser opened. After you approve, you'll be redirected to a URL like:<br/>
+          <code style="color:var(--accent);">http://localhost/?code=XXXXXXXXXX&amp;...</code><br/>
+          Copy that entire URL and paste it below:
+        </div>
+        <input class="auth-input" id="upstox-redirect-url" placeholder="Paste full redirect URL here..." autocomplete="off" style="margin-bottom:8px;"/>
+        <button class="auth-btn" style="background:#a855f7;color:#fff;margin-bottom:8px;" onclick="upstoxExchangeCode()">✓ Get Access Token</button>
+        <button class="auth-btn secondary" onclick="upstoxShowCreds()" style="margin-bottom:8px;">← Back</button>
+      </div>
+
+      <!-- Manual token paste fallback -->
+      <div style="margin-top:4px;border-top:1px solid var(--border);padding-top:12px;">
+        <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:8px;">OR paste access token directly (from developer portal → Get Token):</div>
+        <input class="auth-input" id="upstox-manual-token" placeholder="Access token (eyJ0eXAi...)" autocomplete="off" style="margin-bottom:8px;"/>
+        <div id="upstox-token-status" style="font-family:'Space Mono',monospace;font-size:11px;margin-bottom:8px;padding:8px 10px;border-radius:6px;display:none;line-height:1.7;"></div>
+        <button class="auth-btn" style="background:var(--surface2);color:var(--accent);border:1px solid var(--accent);margin-bottom:8px;" onclick="upstoxSaveManualToken()">✓ Save Token</button>
+      </div>
+
+      <div id="upstox-error" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--red);margin-bottom:8px;display:none;"></div>
+      <div id="upstox-success" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--green);margin-bottom:8px;display:none;"></div>
+      <button class="auth-btn secondary" onclick="closeUpstoxModal()">Close</button>
     </div>
   </div>
 
@@ -457,6 +508,9 @@ service cloud.firestore {
       <div class="status-pill"><div class="dot yellow"></div><span id="risk-display">Risk/Trade: —</span></div>
       <div class="status-pill clickable" onclick="showApiModal()">
         <div class="dot" id="key-dot"></div><span id="key-status-text">Loading...</span>
+      </div>
+      <div class="status-pill clickable" onclick="showUpstoxModal()" id="upstox-pill">
+        <div class="dot" id="upstox-dot"></div><span id="upstox-status-text">⚡ Connect Upstox</span>
       </div>
       <div class="status-pill clickable" onclick="showTGModal()" id="tg-pill">
         <div class="dot" id="tg-dot"></div><span id="tg-status-text">✈️ Telegram</span>
@@ -871,6 +925,12 @@ function startTraderDashboard(name) {
   updateCapitalDisplay();
   updateKeyStatus();
   updateTGStatus();
+  updateUpstoxStatus();
+  // Auto-prompt Upstox once per session if token missing or expired
+  if (!isUpstoxTokenValid() && !sessionStorage.getItem('upstox_prompted')) {
+    sessionStorage.setItem('upstox_prompted', '1');
+    setTimeout(() => showUpstoxModal(), 800);
+  }
   startClock();
   loadIndices();
   setInterval(loadIndices, 60000);
@@ -1094,157 +1154,214 @@ function fetchWithTimeout(input, init, ms = 7000) {
     .finally(() => clearTimeout(id));
 }
 
-// For JSON APIs (Yahoo Finance etc.)
-async function fetchViaProxy(url) {
-  const proxies = [
-    // 1. corsproxy.io — fast, reliable
-    async u => {
-      const r = await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(u)}`, {}, 7000);
-      if (!r.ok) throw new Error('corsproxy ' + r.status);
-      return r.json();
-    },
-    // 2. allorigins.win
-    async u => {
-      const r = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, {}, 8000);
-      if (!r.ok) throw new Error('allorigins ' + r.status);
-      const d = await r.json();
-      return typeof d.contents === 'string' ? JSON.parse(d.contents) : d.contents;
-    },
-    // 3. codetabs
-    async u => {
-      const r = await fetchWithTimeout(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, {}, 7000);
-      if (!r.ok) throw new Error('codetabs ' + r.status);
-      return r.json();
-    },
-    // 4. thingproxy
-    async u => {
-      const r = await fetchWithTimeout(`https://thingproxy.freeboard.io/fetch/${u}`, {}, 7000);
-      if (!r.ok) throw new Error('thingproxy ' + r.status);
-      return r.json();
-    },
-    // 5. htmldriven proxy
-    async u => {
-      const r = await fetchWithTimeout(`https://cors-anywhere.herokuapp.com/${u}`, { headers:{'X-Requested-With':'XMLHttpRequest'} }, 7000);
-      if (!r.ok) throw new Error('cors-anywhere ' + r.status);
-      return r.json();
-    },
-  ];
-  let lastErr;
-  for (const proxy of proxies) {
-    try { return await proxy(url); } catch(e) { lastErr = e; console.warn('Proxy failed:', e.message); }
-  }
-  throw lastErr;
-}
+// All proxy functions removed — Upstox API handles all market data directly
+// News: rss2json.com first, then corsproxy.io raw RSS fallback
 
-// For XML / text content (RSS feeds etc.)
-async function fetchTextViaProxy(url) {
-  const proxies = [
-    async u => {
-      const r = await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(u)}`, {}, 7000);
-      if (!r.ok) throw new Error('corsproxy ' + r.status);
-      return r.text();
-    },
-    async u => {
-      const r = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, {}, 8000);
-      if (!r.ok) throw new Error('allorigins ' + r.status);
-      const d = await r.json();
-      return typeof d.contents === 'string' ? d.contents : '';
-    },
-    async u => {
-      const r = await fetchWithTimeout(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, {}, 7000);
-      if (!r.ok) throw new Error('codetabs ' + r.status);
-      return r.text();
-    },
-    async u => {
-      const r = await fetchWithTimeout(`https://thingproxy.freeboard.io/fetch/${u}`, {}, 7000);
-      if (!r.ok) throw new Error('thingproxy ' + r.status);
-      return r.text();
-    },
+// Fetch news items — tries rss2json.com (tier-1), then raw RSS via corsproxy.io (tier-2)
+async function fetchNewsItems() {
+  // Tier-1: feeds that rss2json.com can reliably reach
+  // NOTE: do NOT add &count= — requires paid API key on rss2json.com
+  // FeedBurner URLs are dead (Google shut down FeedBurner RSS hosting)
+  const rss2jsonFeeds = [
+    'https://www.business-standard.com/rss/markets-106.rss',
+    'https://www.livemint.com/rss/markets',
+    'https://www.thehindu.com/business/markets/feeder/default.rss',
+    'https://www.ndtv.com/business/rss',
   ];
-  let lastErr;
-  for (const proxy of proxies) {
-    try { return await proxy(url); } catch(e) { lastErr = e; console.warn('Text proxy failed:', e.message); }
+  for (const feed of rss2jsonFeeds) {
+    try {
+      const res = await fetchWithTimeout(
+        `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed)}`,
+        {}, 9000
+      );
+      if (!res.ok) { console.warn('rss2json HTTP', res.status, feed); continue; }
+      const data = await res.json();
+      if (data.status === 'ok' && data.items?.length) {
+        console.log('News via rss2json:', feed);
+        return data.items;
+      }
+      console.warn('rss2json status:', data.status, data.message);
+    } catch(e) { console.warn('rss2json failed:', e.message, feed); }
   }
-  throw lastErr;
+
+  // Tier-2: fetch raw RSS directly via corsproxy.io and parse manually
+  const rawFeeds = [
+    'https://www.business-standard.com/rss/markets-106.rss',
+    'https://www.livemint.com/rss/markets',
+    'https://economictimes.indiatimes.com/markets/stocks/rss.cms',
+  ];
+  for (const feed of rawFeeds) {
+    try {
+      const res = await fetchWithTimeout(
+        `https://corsproxy.io/?url=${encodeURIComponent(feed)}`,
+        {}, 9000
+      );
+      if (!res.ok) continue;
+      const xmlStr = await res.text();
+      if (!xmlStr.includes('<item')) continue;
+      const xml = new DOMParser().parseFromString(xmlStr, 'text/xml');
+      const items = Array.from(xml.querySelectorAll('item')).slice(0, 12).map(item => {
+        // <link> in RSS can be a text node after the tag, not textContent
+        const linkEl = item.querySelector('link');
+        const link = linkEl?.textContent?.trim() || linkEl?.nextSibling?.textContent?.trim() || '#';
+        return {
+          title:   item.querySelector('title')?.textContent || '',
+          pubDate: item.querySelector('pubDate')?.textContent || '',
+          link,
+          description: item.querySelector('description')?.textContent || '',
+        };
+      }).filter(i => i.title);
+      if (items.length) {
+        console.log('News via corsproxy.io raw RSS:', feed);
+        return items;
+      }
+    } catch(e) { console.warn('corsproxy failed:', e.message, feed); }
+  }
+
+  return [];
 }
 
 // ═══════════════════════════════════════════════════════════
-// LIVE INDICES (cache-busted, real-time Yahoo Finance v7 quote)
+// LIVE INDICES — Upstox first, Yahoo Finance fallback
 // ═══════════════════════════════════════════════════════════
-const INDEX_MAP={
-  '%5ENSEI':   {valId:'nifty-val',    chgId:'nifty-chg',    timeId:'nifty-time',    sym:'^NSEI'},
-  '%5EBSESN':  {valId:'sensex-val',   chgId:'sensex-chg',   timeId:'sensex-time',   sym:'^BSESN'},
-  '%5ENSEBANK':{valId:'banknifty-val',chgId:'banknifty-chg',timeId:'banknifty-time',sym:'^NSEBANK'},
-  '%5ENSMIDCP':{valId:'midcap-val',   chgId:'midcap-chg',   timeId:'midcap-time',   sym:'^NSMIDCP'},
+const INDEX_MAP = {
+  'NIFTY50':   {valId:'nifty-val',    chgId:'nifty-chg',    timeId:'nifty-time'   },
+  'SENSEX':    {valId:'sensex-val',   chgId:'sensex-chg',   timeId:'sensex-time'  },
+  'BANKNIFTY': {valId:'banknifty-val',chgId:'banknifty-chg',timeId:'banknifty-time'},
+  'MIDCAP':    {valId:'midcap-val',   chgId:'midcap-chg',   timeId:'midcap-time'  },
 };
+
+function renderIndex(ids, price, chg, pct, timeMs) {
+  document.getElementById(ids.valId).textContent = price.toLocaleString('en-IN', {maximumFractionDigits:2});
+  const el = document.getElementById(ids.chgId);
+  el.textContent = `${chg>=0?'+':''}${chg.toFixed(2)} (${Number(pct).toFixed(2)}%)`;
+  el.className = `index-chg ${chg>=0?'up':'down'}`;
+  if (timeMs) document.getElementById(ids.timeId).textContent =
+    new Date(timeMs).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'})+' IST';
+}
+
 async function loadIndices() {
-  const symbols = Object.keys(INDEX_MAP).join(',');
-  try {
-    const data = await fetchViaProxy(
-      `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}&_=${Math.random()}`
-    );
-    const quotes = data?.quoteResponse?.result || [];
-    if (!quotes.length) throw new Error('empty');
-    quotes.forEach(q => {
-      const entry = Object.values(INDEX_MAP).find(v => v.sym === q.symbol);
-      if (!entry) return;
-      const price = q.regularMarketPrice, chg = q.regularMarketChange, pct = q.regularMarketChangePercent?.toFixed(2);
-      document.getElementById(entry.valId).textContent = price.toLocaleString('en-IN', {maximumFractionDigits:2});
-      const chgEl = document.getElementById(entry.chgId);
-      chgEl.textContent = `${chg>=0?'+':''}${chg.toFixed(2)} (${pct}%)`;
-      chgEl.className = `index-chg ${chg>=0?'up':'down'}`;
-      if (q.regularMarketTime)
-        document.getElementById(entry.timeId).textContent =
-          new Date(q.regularMarketTime*1000).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'})+' IST';
-    });
-    document.getElementById('indices-updated').textContent = 'updated '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'})+' IST';
-  } catch(e) {
-    // Fallback: per-symbol v8 chart
-    for (const [enc, ids] of Object.entries(INDEX_MAP)) {
-      try {
-        const meta = (await fetchViaProxy(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${enc}?interval=1m&range=1d&_=${Math.random()}`
-        ))?.chart?.result?.[0]?.meta;
-        if (!meta) continue;
-        const price = meta.regularMarketPrice, chg = price - meta.chartPreviousClose;
-        const pct = ((chg/meta.chartPreviousClose)*100).toFixed(2);
-        document.getElementById(ids.valId).textContent = price.toLocaleString('en-IN',{maximumFractionDigits:2});
-        const el = document.getElementById(ids.chgId);
-        el.textContent = `${chg>=0?'+':''}${chg.toFixed(2)} (${pct}%)`;
-        el.className = `index-chg ${chg>=0?'up':'down'}`;
-        if (meta.regularMarketTime)
-          document.getElementById(ids.timeId).textContent =
-            new Date(meta.regularMarketTime*1000).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'})+' IST';
-      } catch {}
+  const now = () => new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'})+' IST';
+  const keys = ['NIFTY50','SENSEX','BANKNIFTY','MIDCAP'].map(k => UPSTOX_KEY_MAP[k]).filter(Boolean);
+  const upData = await fetchUpstoxQuotes(keys);
+  if (upData) {
+    for (const [name, ids] of Object.entries(INDEX_MAP)) {
+      const q = upData[UPSTOX_KEY_MAP[name]];
+      if (!q) continue;
+      const price = q.last_price;
+      const prev  = q.ohlc?.close || q.ohlc?.open || price;
+      const chg   = price - prev;
+      renderIndex(ids, price, chg, prev > 0 ? (chg/prev*100) : 0, Date.now());
     }
-    document.getElementById('indices-updated').textContent = 'updated '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'})+' IST';
+    document.getElementById('indices-updated').textContent = '⚡ Upstox · ' + now();
+  } else {
+    document.getElementById('indices-updated').textContent = '⚠ Connect Upstox to load indices';
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// UPSTOX API — Direct browser calls, no proxy needed
+// Token: paste from developer.upstox.com → Get Token (daily)
+// ═══════════════════════════════════════════════════════════
+function getUpstoxToken() { return localStorage.getItem('orb_upstox_token') || ''; }
+function setUpstoxToken(t) { localStorage.setItem('orb_upstox_token', t.trim()); }
+
+// Upstox instrument keys (NSE_EQ|ISIN) for the 20 watchlist stocks + indices
+const UPSTOX_KEY_MAP = {
+  // Indices
+  'NIFTY50':    'NSE_INDEX|Nifty 50',
+  'SENSEX':     'BSE_INDEX|SENSEX',
+  'BANKNIFTY':  'NSE_INDEX|Nifty Bank',
+  'MIDCAP':     'NSE_INDEX|Nifty Midcap 100',
+  // Stocks
+  'SAIL':       'NSE_EQ|INE114A01011',
+  'IRFC':       'NSE_EQ|INE053F01010',
+  'NHPC':       'NSE_EQ|INE848E01016',
+  'SUZLON':     'NSE_EQ|INE040H01021',
+  'BANKBARODA': 'NSE_EQ|INE028A01039',
+  'RVNL':       'NSE_EQ|INE415G01027',
+  'SBIN':       'NSE_EQ|INE062A01020',
+  'REC':        'NSE_EQ|INE020B01018',
+  'PFC':        'NSE_EQ|INE134E01011',
+  'BPCL':       'NSE_EQ|INE029A01011',
+  'ITC':        'NSE_EQ|INE154A01025',
+  'COALINDIA':  'NSE_EQ|INE522F01014',
+  'NTPC':       'NSE_EQ|INE733E01010',
+  'VEDL':       'NSE_EQ|INE205A01025',
+  'TATASTEEL':  'NSE_EQ|INE081A01012',
+  'YESBANK':    'NSE_EQ|INE528G01035',
+  'ADANIPOWER': 'NSE_EQ|INE814H01011',
+  'HAL':        'NSE_EQ|INE066F01020',
+  'IRCTC':      'NSE_EQ|INE335Y01020',
+  'VODAIDEA':   'NSE_EQ|INE669E01016',
+};
+
+// Fetch market quotes from Upstox API (returns null if no token)
+async function fetchUpstoxQuotes(instrumentKeys) {
+  const token = getUpstoxToken();
+  if (!token || !isUpstoxTokenValid()) return null;
+  const symParam = instrumentKeys.join(',');
+  try {
+    const res = await fetchWithTimeout(
+      `https://api.upstox.com/v2/market-quote/quotes?symbol=${encodeURIComponent(symParam)}`,
+      { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } },
+      8000
+    );
+    if (res.status === 401) {
+      // Token expired
+      showUpstoxTokenExpired();
+      return null;
+    }
+    if (!res.ok) throw new Error('Upstox ' + res.status);
+    const data = await res.json();
+    const raw = data?.data;
+    if (!raw) return null;
+    // Upstox returns keys as "NSE_EQ:SYMBOL" (colon) but instrument_token
+    // inside each record uses "NSE_EQ|ISIN" (pipe) — re-index by instrument_token
+    const normalized = {};
+    for (const val of Object.values(raw)) {
+      const key = val.instrument_token;  // e.g. "NSE_INDEX|Nifty 50" or "NSE_EQ|INE114A01011"
+      if (key) normalized[key] = val;
+    }
+    return normalized;
+  } catch(e) {
+    console.warn('Upstox fetch error:', e.message);
+    return null;
+  }
+}
+
+function showUpstoxTokenExpired() {
+  const dot = document.getElementById('upstox-dot');
+  const txt = document.getElementById('upstox-status-text');
+  if (dot) dot.className = 'dot red';
+  if (txt) txt.textContent = '⚡ Upstox token expired — refresh daily';
 }
 
 // ═══════════════════════════════════════════════════════════
 // DYNAMIC WATCHLIST — scans 20 NSE stocks, ranks by ORB setup
 // ═══════════════════════════════════════════════════════════
 const NSE_UNIVERSE = [
-  {sym:'SAIL.NS',       name:'SAIL',       sector:'Steel·PSU'},
-  {sym:'IRFC.NS',       name:'IRFC',       sector:'Finance·PSU'},
-  {sym:'NHPC.NS',       name:'NHPC',       sector:'Power·PSU'},
-  {sym:'SUZLON.NS',     name:'SUZLON',     sector:'Energy'},
-  {sym:'BANKBARODA.NS', name:'BANKBARODA', sector:'Banking·PSU'},
-  {sym:'RVNL.NS',       name:'RVNL',       sector:'Railways·PSU'},
-  {sym:'SBIN.NS',       name:'SBIN',       sector:'Banking·PSU'},
-  {sym:'RECLTD.NS',     name:'REC',        sector:'Finance·PSU'},
-  {sym:'PFC.NS',        name:'PFC',        sector:'Finance·PSU'},
-  {sym:'BPCL.NS',       name:'BPCL',       sector:'Oil·PSU'},
-  {sym:'ITC.NS',        name:'ITC',        sector:'FMCG'},
-  {sym:'COALINDIA.NS',  name:'COALINDIA',  sector:'Mining·PSU'},
-  {sym:'NTPC.NS',       name:'NTPC',       sector:'Power·PSU'},
-  {sym:'VEDL.NS',       name:'VEDL',       sector:'Metals'},
-  {sym:'TATASTEEL.NS',  name:'TATASTEEL',  sector:'Steel'},
-  {sym:'YESBANK.NS',    name:'YESBANK',    sector:'Banking'},
-  {sym:'ADANIPOWER.NS', name:'ADANIPOWER', sector:'Energy'},
-  {sym:'HAL.NS',        name:'HAL',        sector:'Defence·PSU'},
-  {sym:'IRCTC.NS',      name:'IRCTC',      sector:'Railways·PSU'},
-  {sym:'IDEA.NS',       name:'VODAIDEA',   sector:'Telecom'},
+  {upKey:'SAIL',       name:'SAIL',       sector:'Steel·PSU'},
+  {upKey:'IRFC',       name:'IRFC',       sector:'Finance·PSU'},
+  {upKey:'NHPC',       name:'NHPC',       sector:'Power·PSU'},
+  {upKey:'SUZLON',     name:'SUZLON',     sector:'Energy'},
+  {upKey:'BANKBARODA', name:'BANKBARODA', sector:'Banking·PSU'},
+  {upKey:'RVNL',       name:'RVNL',       sector:'Railways·PSU'},
+  {upKey:'SBIN',       name:'SBIN',       sector:'Banking·PSU'},
+  {upKey:'REC',        name:'REC',        sector:'Finance·PSU'},
+  {upKey:'PFC',        name:'PFC',        sector:'Finance·PSU'},
+  {upKey:'BPCL',       name:'BPCL',       sector:'Oil·PSU'},
+  {upKey:'ITC',        name:'ITC',        sector:'FMCG'},
+  {upKey:'COALINDIA',  name:'COALINDIA',  sector:'Mining·PSU'},
+  {upKey:'NTPC',       name:'NTPC',       sector:'Power·PSU'},
+  {upKey:'VEDL',       name:'VEDL',       sector:'Metals'},
+  {upKey:'TATASTEEL',  name:'TATASTEEL',  sector:'Steel'},
+  {upKey:'YESBANK',    name:'YESBANK',    sector:'Banking'},
+  {upKey:'ADANIPOWER', name:'ADANIPOWER', sector:'Energy'},
+  {upKey:'HAL',        name:'HAL',        sector:'Defence·PSU'},
+  {upKey:'IRCTC',      name:'IRCTC',      sector:'Railways·PSU'},
+  {upKey:'VODAIDEA',   name:'VODAIDEA',   sector:'Telecom'},
 ];
 
 const livePrices = {};
@@ -1303,79 +1420,87 @@ async function loadDynamicWatchlist() {
 
 async function fetchAndRenderWatchlist(tMins, phase) {
   const tbody  = document.getElementById('watchlist-tbody');
-  const symStr = NSE_UNIVERSE.map(s => s.sym).join(',');
 
-  // Batch fetch all 20 stocks in ONE Yahoo Finance request
-  let quotes = [];
-  try {
-    const data = await fetchViaProxy(
-      `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symStr}&_=${Math.random()}`
-    );
-    quotes = data?.quoteResponse?.result || [];
-  } catch(e) {
-    console.error('Watchlist fetch error:', e);
-    let countdown = 15;
-    const autoRetry = () => {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:16px;color:var(--red);font-family:'Space Mono',monospace;font-size:11px;">
-        ⚠ Market data unavailable — all proxies timed out.<br>
-        <span style="color:var(--muted);font-size:10px;">Auto-retry in <span id="retry-cd">${countdown}</span>s &nbsp;|&nbsp;</span>
-        <button onclick="loadDynamicWatchlist()" style="color:var(--accent);background:none;border:none;cursor:pointer;font-family:'Space Mono',monospace;font-size:11px;">↻ Retry now</button>
-      </td></tr>`;
-      const cdEl = document.getElementById('retry-cd');
-      const iv = setInterval(() => {
-        countdown--;
-        if (cdEl) cdEl.textContent = countdown;
-        if (countdown <= 0) { clearInterval(iv); loadDynamicWatchlist(); }
-      }, 1000);
-    };
-    autoRetry();
-    return;
+  // ── Try Upstox first (no proxy, real-time) ──
+  let enriched = [];
+  const upToken = getUpstoxToken();
+
+  if (upToken) {
+    const instrumentKeys = NSE_UNIVERSE.map(s => UPSTOX_KEY_MAP[s.upKey]).filter(Boolean);
+    const upData = await fetchUpstoxQuotes(instrumentKeys);
+    if (upData) {
+      // Update Upstox status dot
+      const dot = document.getElementById('upstox-dot');
+      const txt = document.getElementById('upstox-status-text');
+      if (dot) dot.className = 'dot green';
+      if (txt) txt.textContent = '⚡ Upstox Live';
+
+      enriched = NSE_UNIVERSE.map(meta => {
+        const key = UPSTOX_KEY_MAP[meta.upKey];
+        const q   = upData[key];
+        if (!q) return null;
+        const price  = q.last_price || 0;
+        const prev   = q.ohlc?.close || q.ohlc?.open || price;
+        const chg    = price - prev;
+        const gapPct = prev > 0 ? ((chg / prev) * 100) : 0;
+        const dayHi  = q.ohlc?.high || price;
+        const dayLo  = q.ohlc?.low  || price;
+        const range  = prev > 0 ? ((dayHi - dayLo) / prev * 100) : 0;
+        const score  = gapPct * 0.6 + range * 0.4;
+        livePrices[meta.name] = { price, chg: +chg.toFixed(2), pct: gapPct.toFixed(2) };
+        return { ...meta, price, prev, chg, gapPct, dayHi, dayLo, range, score };
+      }).filter(Boolean);
+    }
   }
 
-  // Enrich with universe metadata & compute gap score
-  const enriched = quotes.map(q => {
-    const meta = NSE_UNIVERSE.find(u => u.sym.toLowerCase() === (q.symbol||'').toLowerCase());
-    if (!meta) return null;
-    const price   = q.regularMarketPrice || 0;
-    const prev    = q.regularMarketPreviousClose || q.regularMarketOpen || price;
-    const chg     = price - prev;
-    const gapPct  = prev > 0 ? ((chg / prev) * 100) : 0;
-    const dayHi   = q.regularMarketDayHigh || price;
-    const dayLo   = q.regularMarketDayLow  || price;
-    const range   = prev > 0 ? ((dayHi - dayLo) / prev * 100) : 0;
-    // Score: favour gap-ups + range (volatility = opportunity)
-    const score   = gapPct * 0.6 + range * 0.4;
-
-    // Update global livePrices for AI briefing
-    livePrices[meta.name] = { price, chg: +chg.toFixed(2), pct: gapPct.toFixed(2) };
-
-    return { ...meta, price, prev, chg, gapPct, dayHi, dayLo, range, score, raw: q };
-  }).filter(Boolean);
+  // ── No Upstox data — show connect prompt (Yahoo Finance is permanently blocked) ──
+  if (!enriched.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:24px;font-family:'Space Mono',monospace;font-size:12px;">
+      <div style="color:var(--yellow);margin-bottom:10px;">⚡ Connect Upstox for live market data</div>
+      <div style="color:var(--muted);font-size:10px;margin-bottom:14px;">Yahoo Finance is blocked by CORS. Upstox gives you real-time NSE data — free, no proxy needed.</div>
+      <button onclick="showUpstoxModal()" style="background:var(--green);color:var(--bg);border:none;border-radius:6px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;padding:10px 20px;cursor:pointer;">⚡ Connect Upstox Now</button>
+      <span style="color:var(--muted);font-size:10px;display:block;margin-top:10px;">Already connected? Your token may have expired — click to refresh.</span>
+    </td></tr>`;
+    return;
+  }
 
   // Sort descending by score, take top 6
   enriched.sort((a, b) => b.score - a.score);
   rankedStocks = enriched.slice(0, 6);
 
-  // For post-9:30: fetch 5-min chart to compute actual ORB levels
-  if (tMins >= 570) {
+  // For post-9:30: fetch 5-min intraday candles via Upstox to compute actual ORB levels
+  if (tMins >= 570 && isUpstoxTokenValid()) {
+    const token = getUpstoxToken();
     await Promise.allSettled(rankedStocks.map(async stock => {
       try {
-        const data  = await fetchViaProxy(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${stock.sym}?interval=5m&range=1d&_=${Math.random()}`
+        const instrKey = UPSTOX_KEY_MAP[stock.upKey];
+        if (!instrKey) return;
+        // Upstox intraday candle API — 5-minute interval
+        // NOTE: do NOT encodeURIComponent the key — Upstox expects literal | in the path
+        // Valid intervals: 1minute, 30minute (5minute is NOT accepted by Upstox)
+        const res = await fetchWithTimeout(
+          `https://api.upstox.com/v2/historical-candle/intraday/${instrKey}/1minute`,
+          { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } },
+          8000
         );
-        const chart = data?.chart?.result?.[0];
-        const tss   = chart.timestamp || [];
-        const qs    = chart.indicators.quote[0];
+        if (!res.ok) return;
+        const data = await res.json();
+        // candles: [timestamp, open, high, low, close, volume, oi]
+        const candles = data?.data?.candles || [];
         let orbH = null, orbL = null;
-        for (let i = 0; i < tss.length; i++) {
-          const um = new Date(tss[i] * 1000).getUTCHours() * 60 + new Date(tss[i] * 1000).getUTCMinutes();
-          if (um >= 225 && um < 240) {
-            if (qs.high[i] != null && (orbH === null || qs.high[i] > orbH)) orbH = qs.high[i];
-            if (qs.low[i]  != null && (orbL === null || qs.low[i]  < orbL)) orbL = qs.low[i];
+        for (const c of candles) {
+          // timestamp is ISO string e.g. "2026-04-16T09:15:00+05:30"
+          const d = new Date(c[0]);
+          // Convert UTC to IST: add 330 minutes (5h 30m)
+          const totalMinIST = (d.getUTCHours() * 60 + d.getUTCMinutes() + 330) % 1440;
+          // ORB window: 9:15–9:29 IST = minutes 555–569
+          if (totalMinIST >= 555 && totalMinIST < 570) {
+            if (c[2] != null && (orbH === null || c[2] > orbH)) orbH = c[2];
+            if (c[3] != null && (orbL === null || c[3] < orbL)) orbL = c[3];
           }
         }
         stock.orbH = orbH; stock.orbL = orbL;
-      } catch {}
+      } catch(e) { console.warn('ORB chart error:', stock.name, e.message); }
     }));
   }
 
@@ -1456,50 +1581,48 @@ async function fetchAndRenderWatchlist(tMins, phase) {
 // ═══════════════════════════════════════════════════════════
 async function loadNews(){
   const c=document.getElementById('news-list');
-  c.innerHTML='<div class="fetching" style="font-family:\'Space Mono\',monospace;font-size:12px;">Fetching...</div>';
-  try{
-    const url='https://economictimes.indiatimes.com/markets/stocks/rss.cms?_='+Math.random();
-    const xmlStr = await fetchTextViaProxy(url);
-    const xml=new DOMParser().parseFromString(xmlStr,'text/xml');
-    const items=Array.from(xml.querySelectorAll('item')).slice(0,8);
-    if(!items.length)throw new Error('empty');
-    let latestTime=null;
+  c.innerHTML='<div class="fetching" style="font-family:\'Space Mono\',monospace;font-size:12px;">Fetching news...</div>';
+  try {
+    const items = await fetchNewsItems();
+    if (!items || !items.length) throw new Error('no items');
+    let latestTime = null;
     // Cache headlines for AI briefing
-    latestNewsHeadlines = items.map(item => {
-      const title   = item.querySelector('title')?.textContent||'';
-      const pubDate = item.querySelector('pubDate')?.textContent||'';
+    latestNewsHeadlines = items.slice(0,10).map(item => {
+      const title   = item.title || '';
+      const pubDate = item.pubDate || '';
       const d       = new Date(pubDate);
       const t       = isNaN(d)?'':d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'});
       return t ? `[${t} IST] ${title}` : title;
     }).filter(Boolean);
-    c.innerHTML=items.map(item=>{
-      const title=item.querySelector('title')?.textContent||'';
-      const pubDate=item.querySelector('pubDate')?.textContent||'';
-      const link=item.querySelector('link')?.textContent||'#';
-      const d=new Date(pubDate);if(!latestTime||d>latestTime)latestTime=d;
-      const t=isNaN(d)?'':d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'});
-      const sent=title.match(/fall|drop|crash|loss|decline|weak|sell/i)?'bear':title.match(/rise|gain|rally|surge|buy|strong|high|growth/i)?'bull':'neutral';
-      return`<div class="news-item" onclick="window.open('${link}','_blank')">
+    c.innerHTML = items.slice(0,8).map(item => {
+      const title   = item.title || '';
+      const pubDate = item.pubDate || '';
+      const link    = item.link || '#';
+      const d = new Date(pubDate);
+      if (!latestTime || d > latestTime) latestTime = d;
+      const t = isNaN(d)?'':d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'});
+      const sent = title.match(/fall|drop|crash|loss|decline|weak|sell/i)?'bear':title.match(/rise|gain|rally|surge|buy|strong|high|growth/i)?'bull':'neutral';
+      return `<div class="news-item" onclick="window.open('${link}','_blank')">
         <div style="display:flex;gap:8px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap">
           <div class="news-headline">${title.slice(0,110)}${title.length>110?'...':''}</div>
           <span class="news-tag tag-${sent}">${sent.toUpperCase()}</span>
         </div>
-        <div class="news-meta"><span>ET Markets</span>${t?`<span>${t} IST</span>`:''}</div>
+        <div class="news-meta"><span>Market News</span>${t?`<span>${t} IST</span>`:''}</div>
       </div>`;
     }).join('');
-    if(latestTime)document.getElementById('news-updated').textContent='latest: '+latestTime.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'})+' IST';
-    // WhatsApp alert for significant news (30-min cooldown)
+    if (latestTime) document.getElementById('news-updated').textContent = 'latest: '+latestTime.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'})+' IST';
+    // Telegram alert for significant news (30-min cooldown)
     const sigItem = items.find(item => {
-      const t = item.querySelector('title')?.textContent || '';
+      const t = item.title || '';
       return t.match(/crash|circuit|halt|surge|rally|breakout|sell-off|bloodbath|rout|fall sharply/i);
     });
     if (sigItem && Date.now() - tgLastNewsSent > 1800000) {
       tgLastNewsSent = Date.now();
-      const t = sigItem.querySelector('title')?.textContent || '';
+      const t = sigItem.title || '';
       const sentiment = t.match(/crash|sell-off|bloodbath|rout|fall sharply/i) ? '🔴 BEARISH' : '🟢 BULLISH';
       sendTelegram(`📰 <b>Market Alert — ${sentiment}</b>\n\n${t.slice(0, 280)}\n\n<i>Source: ET Markets</i>`);
     }
-  }catch{
+  } catch(e) {
     c.innerHTML=`<div class="news-item" onclick="window.open('https://economictimes.indiatimes.com/markets','_blank')"><div class="news-headline">→ Economic Times Markets</div><div class="news-meta">Tap to open</div></div>
     <div class="news-item" onclick="window.open('https://www.moneycontrol.com/news/business/markets/','_blank')"><div class="news-headline">→ Moneycontrol Markets</div></div>`;
   }
@@ -1643,19 +1766,19 @@ async function loadAIAnalysis(){
   const capLine = dailyCapital
     ? `Capital today: ₹${dailyCapital.toLocaleString('en-IN')} | Max risk/trade: ₹${Math.floor(dailyCapital*.02).toLocaleString('en-IN')}`
     : 'Capital: not set';
-  // Fetch fresh news if cache is empty
+  // Fetch fresh news if cache is empty — uses rss2json.com (no proxy needed)
   if (!latestNewsHeadlines.length) {
     try {
-      const url = 'https://economictimes.indiatimes.com/markets/stocks/rss.cms?_='+Math.random();
-      const xmlStr = await fetchTextViaProxy(url);
-      const xml = new DOMParser().parseFromString(xmlStr,'text/xml');
-      latestNewsHeadlines = Array.from(xml.querySelectorAll('item')).slice(0,8).map(item => {
-        const title   = item.querySelector('title')?.textContent||'';
-        const pubDate = item.querySelector('pubDate')?.textContent||'';
-        const d       = new Date(pubDate);
-        const t       = isNaN(d)?'':d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'});
-        return t ? `[${t} IST] ${title}` : title;
-      }).filter(Boolean);
+      const items = await fetchNewsItems();
+      if (items && items.length) {
+        latestNewsHeadlines = items.slice(0,10).map(item => {
+          const title   = item.title || '';
+          const pubDate = item.pubDate || '';
+          const d       = new Date(pubDate);
+          const t       = isNaN(d)?'':d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'});
+          return t ? `[${t} IST] ${title}` : title;
+        }).filter(Boolean);
+      }
     } catch(e) { /* continue without news if fetch fails */ }
   }
   const newsSection = latestNewsHeadlines.length
@@ -1664,29 +1787,35 @@ async function loadAIAnalysis(){
   // Update news badge in AI card
   const newsBadge = document.getElementById('ai-news-badge');
   if (newsBadge) {
-    if (latestNewsHeadlines.length) {
-      newsBadge.textContent = `📰 ${latestNewsHeadlines.length} headlines loaded`;
-      newsBadge.style.color = 'var(--green)';
-      newsBadge.style.borderColor = 'rgba(0,230,118,.3)';
-      newsBadge.style.background = 'rgba(0,230,118,.08)';
-    } else {
-      newsBadge.textContent = '📰 no news — offline?';
-      newsBadge.style.color = 'var(--yellow)';
-      newsBadge.style.borderColor = 'rgba(255,214,0,.3)';
-      newsBadge.style.background = 'rgba(255,214,0,.06)';
-    }
+    newsBadge.textContent = `🌐 live web search`;
+    newsBadge.style.color = 'var(--green)';
+    newsBadge.style.borderColor = 'rgba(0,230,118,.3)';
+    newsBadge.style.background = 'rgba(0,230,118,.08)';
   }
   try{
     const res=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1400,messages:[{role:'user',content:
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1800,
+        tools:[{
+          type:'web_search_20250305',
+          name:'web_search',
+          max_uses:3
+        }],
+        messages:[{role:'user',content:
         `You are a concise Indian stock market analyst for a beginner NSE ORB intraday trader using Groww (long equity only, no shorting).
 Time: ${now} | ${capLine}
 
 CURRENT LIVE PRICES (use EXACTLY these prices — do not change or invent prices):
 ${stockLines}
-${newsSection}
+${newsSection ? newsSection : ''}
+
+IMPORTANT: Use your web_search tool to search for the latest NSE/BSE market news right now. Search for:
+1. "NSE BSE stock market news today ${new Date().toLocaleDateString('en-IN')}"
+2. Any specific stock names above that have significant moves today
+Use this live news to inform your signals and reasons.
 
 Reply in this EXACT format. No markdown, no asterisks, no dashes, no # headers.
 
@@ -1703,14 +1832,21 @@ Rules:
 - Use the EXACT price I provided — copy it as-is, do not round or change it
 - STOCKNAME must be ALL CAPS
 - Signal must be exactly one of: STRONG, WATCH, AVOID
-- Keep total reply under 500 words`
-      }]})
+- Keep total reply under 700 words`
+        }]})
     });
     const data=await res.json();
     if(data.error) throw new Error(data.error.message);
-    const raw = data.content?.find(b=>b.type==='text')?.text || 'No response.';
+    // Collect all text blocks (web_search responses may produce multiple text blocks)
+    const raw = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('') || 'No response.';
     out.className='';
     out.innerHTML = renderAIBriefingTable(raw, livePrices);
+    // Update badge to show search was used
+    const searchUsed = (data.content||[]).some(b=>b.type==='tool_use'||b.type==='server_tool_use');
+    if (newsBadge) {
+      newsBadge.textContent = searchUsed ? '🌐 web searched' : `📰 ${latestNewsHeadlines.length} headlines`;
+      newsBadge.style.color = 'var(--green)';
+    }
   }catch(e){
     out.className='';
     out.innerHTML=`<div class="no-key-msg">❌ ${e.message}<br/><button onclick="showApiModal()">🔑 Update Key</button></div>`;
@@ -1930,6 +2066,179 @@ function getTGConfig() {
   };
 }
 
+// ═══════════════════════════════════════════════════════════
+// UPSTOX OAUTH FLOW
+// ═══════════════════════════════════════════════════════════
+function showUpstoxModal() {
+  // Pre-fill saved creds
+  const key    = localStorage.getItem('upstox_api_key') || '';
+  const secret = localStorage.getItem('upstox_api_secret') || '';
+  document.getElementById('upstox-api-key').value    = key;
+  document.getElementById('upstox-api-secret').value = secret;
+  document.getElementById('upstox-manual-token').value = getUpstoxToken();
+  document.getElementById('upstox-error').style.display   = 'none';
+  document.getElementById('upstox-success').style.display = 'none';
+  upstoxShowCreds();
+  document.getElementById('upstox-modal').classList.add('show');
+  updateUpstoxStatus();
+}
+
+function closeUpstoxModal() { document.getElementById('upstox-modal').classList.remove('show'); }
+
+function upstoxShowCreds() {
+  document.getElementById('upstox-creds-section').style.display = '';
+  document.getElementById('upstox-code-section').style.display  = 'none';
+}
+
+function upstoxStartLogin() {
+  const key    = document.getElementById('upstox-api-key').value.trim();
+  const secret = document.getElementById('upstox-api-secret').value.trim();
+  const errEl  = document.getElementById('upstox-error');
+  if (!key || !secret) { errEl.textContent = 'Please enter both API Key and Secret.'; errEl.style.display='block'; return; }
+  localStorage.setItem('upstox_api_key', key);
+  localStorage.setItem('upstox_api_secret', secret);
+  errEl.style.display = 'none';
+  // Open Upstox auth URL in new tab
+  const authUrl = `https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id=${encodeURIComponent(key)}&redirect_uri=${encodeURIComponent('http://localhost')}`;
+  window.open(authUrl, '_blank');
+  // Show code paste section
+  document.getElementById('upstox-creds-section').style.display = 'none';
+  document.getElementById('upstox-code-section').style.display  = '';
+}
+
+async function upstoxExchangeCode() {
+  const redirectUrl = document.getElementById('upstox-redirect-url').value.trim();
+  const errEl       = document.getElementById('upstox-error');
+  const sucEl       = document.getElementById('upstox-success');
+  errEl.style.display = 'none'; sucEl.style.display = 'none';
+
+  let code = '';
+  try {
+    const params = new URLSearchParams(new URL(redirectUrl).search);
+    code = params.get('code') || '';
+  } catch(e) {
+    // Maybe they pasted just the code
+    code = redirectUrl;
+  }
+  if (!code) { errEl.textContent = 'Could not find code in URL. Make sure you copied the full redirect URL.'; errEl.style.display='block'; return; }
+
+  const key    = localStorage.getItem('upstox_api_key') || '';
+  const secret = localStorage.getItem('upstox_api_secret') || '';
+
+  errEl.textContent = ''; errEl.style.display='none';
+  sucEl.textContent = '⏳ Exchanging code for token...'; sucEl.style.display='block';
+
+  // Exchange via CORS proxy (token endpoint needs server-side)
+  try {
+    const body = new URLSearchParams({
+      code, client_id: key, client_secret: secret,
+      redirect_uri: 'http://localhost', grant_type: 'authorization_code'
+    });
+    const res = await fetchWithTimeout('https://api.upstox.com/v2/login/authorization/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+      body: body.toString()
+    }, 12000);
+    const data = await res.json();
+    if (data.access_token) {
+      setUpstoxToken(data.access_token);
+      sucEl.textContent = '✅ Connected! Upstox live data is now active.';
+      updateUpstoxStatus();
+      setTimeout(() => { closeUpstoxModal(); loadIndices(); loadDynamicWatchlist(); }, 1500);
+    } else {
+      throw new Error(data.message || data.error_description || 'Token exchange failed');
+    }
+  } catch(e) {
+    sucEl.style.display = 'none';
+    errEl.textContent = '❌ ' + e.message + ' — Try pasting the token manually below instead.';
+    errEl.style.display = 'block';
+  }
+}
+
+async function upstoxSaveManualToken() {
+  const token  = document.getElementById('upstox-manual-token').value.trim();
+  const statEl = document.getElementById('upstox-token-status');
+
+  function showStatus(msg, color, bg) {
+    statEl.innerHTML = msg;
+    statEl.style.color      = color;
+    statEl.style.background = bg;
+    statEl.style.border     = `1px solid ${color}`;
+    statEl.style.display    = 'block';
+  }
+
+  if (!token) { showStatus('⚠️ Paste your access token first.', 'var(--yellow)', 'rgba(255,214,0,.06)'); return; }
+
+  // ── Step 1: Check JWT expiry ──
+  try {
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(atob(parts[1]));
+      const expMs   = payload.exp * 1000;
+      if (expMs < Date.now()) {
+        const expTime = new Date(expMs).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'});
+        const issuedTime = new Date(payload.iat * 1000).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'});
+        showStatus(
+          `❌ TOKEN EXPIRED<br>Issued: ${issuedTime} IST &nbsp;→&nbsp; Expired: ${expTime} IST<br><br>` +
+          `<a href="https://developer.upstox.com" target="_blank" style="color:#a855f7;font-weight:700;">→ Get a fresh token at developer.upstox.com</a><br>` +
+          `<span style="opacity:.7">Log in → click your app → click <strong>Get Token</strong></span>`,
+          'var(--red)', 'rgba(255,23,68,.08)'
+        );
+        return;
+      }
+      const expTime = new Date(expMs).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'});
+      showStatus(`⏳ Token looks valid (expires ${expTime} IST) — testing with Upstox API...`, 'var(--yellow)', 'rgba(255,214,0,.06)');
+    }
+  } catch(e) {
+    showStatus('⏳ Testing token...', 'var(--muted)', 'var(--surface2)');
+  }
+
+  // ── Step 2: Live API test ──
+  try {
+    const testRes = await fetchWithTimeout(
+      `https://api.upstox.com/v2/market-quote/quotes?symbol=${encodeURIComponent('NSE_INDEX|Nifty 50')}`,
+      { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } },
+      10000
+    );
+    const testData = await testRes.json();
+    if (!testRes.ok || testData.status === 'error') {
+      throw new Error(testData.message || testData.errors?.[0]?.message || `HTTP ${testRes.status}`);
+    }
+    // ✅ Token works
+    setUpstoxToken(token);
+    sessionStorage.removeItem('upstox_prompted');
+    showStatus('✅ Connected! Nifty 50 live. Loading all data now...', 'var(--green)', 'rgba(0,230,118,.08)');
+    updateUpstoxStatus();
+    setTimeout(() => { closeUpstoxModal(); loadIndices(); loadDynamicWatchlist(); }, 1200);
+  } catch(e) {
+    showStatus(
+      `❌ API Test Failed: ${e.message}<br>` +
+      `<a href="https://developer.upstox.com" target="_blank" style="color:#a855f7;">→ Get a fresh token</a>`,
+      'var(--red)', 'rgba(255,23,68,.08)'
+    );
+  }
+}
+
+// Check if Upstox JWT token is still valid (not expired)
+function isUpstoxTokenValid() {
+  const token = getUpstoxToken();
+  if (!token) return false;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp && (payload.exp * 1000) > Date.now();
+  } catch(e) { return false; }
+}
+
+function updateUpstoxStatus() {
+  const dot  = document.getElementById('upstox-dot');
+  const text = document.getElementById('upstox-status-text');
+  if (!dot || !text) return;
+  const token = getUpstoxToken();
+  if (!token)                    { dot.className = 'dot red';    text.textContent = '⚡ Connect Upstox'; }
+  else if (isUpstoxTokenValid()) { dot.className = 'dot green';  text.textContent = '⚡ Upstox Live'; }
+  else                           { dot.className = 'dot yellow'; text.textContent = '⚡ Token Expired — Refresh'; }
+}
+
 function showTGModal() {
   const cfg = getTGConfig();
   document.getElementById('tg-token').value  = cfg.token;
@@ -1958,7 +2267,7 @@ async function saveTGConfig() {
   closeTGModal();
   updateTGStatus();
   const ok = await sendTelegram(
-    '✅ <b>ORB Dashboard connected!</b>\n\n' +
+    '✅ <b>ORBIS connected!</b>\n\n' +
     'You will receive alerts for:\n' +
     '🎯 Target hit\n' +
     '⛔ Stop loss breach\n' +
@@ -2076,17 +2385,25 @@ async function pollPositionPrices() {
     if (positionPollTimer) { clearInterval(positionPollTimer); positionPollTimer = null; }
     return;
   }
-  const syms = [...new Set(openPositions.map(p => p.sym))].join(',');
+  // Use Upstox instrument keys mapped from position stock names
+  const instrKeys = [...new Set(openPositions.map(p => {
+    const upKey = NSE_UNIVERSE.find(u => u.name === p.stock || u.sym === p.sym)?.upKey;
+    return upKey ? UPSTOX_KEY_MAP[upKey] : null;
+  }))].filter(Boolean);
+
+  if (!instrKeys.length) return;
   try {
-    const data   = await fetchViaProxy(
-      `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&_=${Math.random()}`
-    );
-    const quotes = data?.quoteResponse?.result || [];
-    quotes.forEach(q => {
-      const price = q.regularMarketPrice;
+    const upData = await fetchUpstoxQuotes(instrKeys);
+    if (!upData) return;
+    Object.values(upData).forEach(q => {
+      const price = q.last_price;
       if (!price) return;
+      // Match by instrument key back to stock name
+      const matchKey = Object.keys(upData).find(k => upData[k] === q);
+      const meta = NSE_UNIVERSE.find(u => UPSTOX_KEY_MAP[u.upKey] === matchKey);
+      if (!meta) return;
       openPositions
-        .filter(p => p.sym.toLowerCase() === (q.symbol||'').toLowerCase() && p.status === 'open')
+        .filter(p => (p.stock === meta.name || p.sym === meta.sym) && p.status === 'open')
         .forEach(pos => {
           pos.currentPrice = price;
           if      (price >= pos.target) firePositionAlert(pos, 'TARGET',   price);
