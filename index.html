@@ -935,7 +935,7 @@ function startTraderDashboard(name) {
   loadIndices();
   setInterval(loadIndices, 60000);
   loadDynamicWatchlist();
-  setInterval(loadDynamicWatchlist, 60000);
+  setInterval(loadDynamicWatchlist, 30000); // 30s refresh — fast enough for intraday
   loadNews();
   loadTradesFromFirestore();
   loadOpenPositions();
@@ -1267,34 +1267,94 @@ async function loadIndices() {
 function getUpstoxToken() { return localStorage.getItem('orb_upstox_token') || ''; }
 function setUpstoxToken(t) { localStorage.setItem('orb_upstox_token', t.trim()); }
 
-// Upstox instrument keys (NSE_EQ|ISIN) for the 20 watchlist stocks + indices
+// Upstox instrument keys — Nifty 50 (all 50) + popular PSU midcaps
+// ~64 stocks = genuine daily variety based on what's actually moving
 const UPSTOX_KEY_MAP = {
-  // Indices
+  // ── Indices ──
   'NIFTY50':    'NSE_INDEX|Nifty 50',
   'SENSEX':     'BSE_INDEX|SENSEX',
   'BANKNIFTY':  'NSE_INDEX|Nifty Bank',
   'MIDCAP':     'NSE_INDEX|Nifty Midcap 100',
-  // Stocks
-  'SAIL':       'NSE_EQ|INE114A01011',
-  'IRFC':       'NSE_EQ|INE053F01010',
-  'NHPC':       'NSE_EQ|INE848E01016',
-  'SUZLON':     'NSE_EQ|INE040H01021',
-  'BANKBARODA': 'NSE_EQ|INE028A01039',
-  'RVNL':       'NSE_EQ|INE415G01027',
+
+  // ══ NIFTY 50 STOCKS ══
+  // Banking & Finance
+  'HDFCBANK':   'NSE_EQ|INE040A01034',
+  'ICICIBANK':  'NSE_EQ|INE090A01021',
+  'AXISBANK':   'NSE_EQ|INE238A01034',
+  'KOTAKBANK':  'NSE_EQ|INE237A01028',
   'SBIN':       'NSE_EQ|INE062A01020',
-  'REC':        'NSE_EQ|INE020B01018',
-  'PFC':        'NSE_EQ|INE134E01011',
+  'INDUSINDBK': 'NSE_EQ|INE095A01012',
+  'BAJFINANCE': 'NSE_EQ|INE296A01024',
+  'BAJAJFINSV': 'NSE_EQ|INE918I01026',
+  'HDFCLIFE':   'NSE_EQ|INE795G01014',
+  'SBILIFE':    'NSE_EQ|INE123W01016',
+  'SHRIRAMFIN': 'NSE_EQ|INE721A01013',
+  // IT & Tech
+  'TCS':        'NSE_EQ|INE467B01029',
+  'INFY':       'NSE_EQ|INE009A01021',
+  'WIPRO':      'NSE_EQ|INE075A01022',
+  'HCLTECH':    'NSE_EQ|INE860A01027',
+  'TECHM':      'NSE_EQ|INE669C01036',
+  // Oil, Gas & Energy
+  'RELIANCE':   'NSE_EQ|INE002A01018',
+  'ONGC':       'NSE_EQ|INE213A01029',
   'BPCL':       'NSE_EQ|INE029A01011',
-  'ITC':        'NSE_EQ|INE154A01025',
   'COALINDIA':  'NSE_EQ|INE522F01014',
   'NTPC':       'NSE_EQ|INE733E01010',
-  'VEDL':       'NSE_EQ|INE205A01025',
+  'POWERGRID':  'NSE_EQ|INE752E01010',
+  // Auto & Engineering
+  'TATAMOTORS': 'NSE_EQ|INE155A01022',
+  'MARUTI':     'NSE_EQ|INE585B01010',
+  'BAJAJAUTO':  'NSE_EQ|INE917I01010',
+  'HEROMOTOCO': 'NSE_EQ|INE158A01026',
+  'EICHERMOT':  'NSE_EQ|INE066A01021',
+  'MAHINDRA':   'NSE_EQ|INE101A01026',
+  'LT':         'NSE_EQ|INE018A01030',
+  // Metals & Materials
   'TATASTEEL':  'NSE_EQ|INE081A01012',
-  'YESBANK':    'NSE_EQ|INE528G01035',
+  'JSWSTEEL':   'NSE_EQ|INE019A01038',
+  'HINDALCO':   'NSE_EQ|INE038A01020',
+  'GRASIM':     'NSE_EQ|INE047A01021',
+  'ULTRACEMCO': 'NSE_EQ|INE481G01011',
+  // FMCG & Consumer
+  'ITC':        'NSE_EQ|INE154A01025',
+  'HINDUNILVR': 'NSE_EQ|INE030A01027',
+  'BRITANNIA':  'NSE_EQ|INE216A01030',
+  'NESTLEIND':  'NSE_EQ|INE239A01016',
+  'TATACONSUM': 'NSE_EQ|INE192A01025',
+  // Pharma & Healthcare
+  'SUNPHARMA':  'NSE_EQ|INE044A01036',
+  'CIPLA':      'NSE_EQ|INE059A01026',
+  'DRREDDY':    'NSE_EQ|INE089A01023',
+  'APOLLOHOSP': 'NSE_EQ|INE437A01024',
+  // Telecom & Media
+  'BHARTIARTL': 'NSE_EQ|INE397D01024',
+  // Conglomerate & Others
+  'ADANIENT':   'NSE_EQ|INE423A01024',
+  'ADANIPORTS': 'NSE_EQ|INE742F01042',
+  'ASIANPAINT': 'NSE_EQ|INE021A01026',
+  'TITAN':      'NSE_EQ|INE280A01028',
+  'TRENT':      'NSE_EQ|INE849A01020',
+  'PIDILITIND': 'NSE_EQ|INE318A01026',
+  'BEL':        'NSE_EQ|INE263A01024',
+
+  // ══ POPULAR PSU MIDCAPS (retail ORB favourites) ══
+  'IRFC':       'NSE_EQ|INE053F01010',
+  'RVNL':       'NSE_EQ|INE415G01027',
+  'NHPC':       'NSE_EQ|INE848E01016',
+  'SUZLON':     'NSE_EQ|INE040H01021',
   'ADANIPOWER': 'NSE_EQ|INE814H01011',
   'HAL':        'NSE_EQ|INE066F01020',
   'IRCTC':      'NSE_EQ|INE335Y01020',
+  'PFC':        'NSE_EQ|INE134E01011',
+  'REC':        'NSE_EQ|INE020B01018',
+  'BANKBARODA': 'NSE_EQ|INE028A01039',
+  'SAIL':       'NSE_EQ|INE114A01011',
+  'VEDL':       'NSE_EQ|INE205A01025',
+  'YESBANK':    'NSE_EQ|INE528G01035',
   'VODAIDEA':   'NSE_EQ|INE669E01016',
+  'TATAPOWER':  'NSE_EQ|INE245A01021',
+  'ZOMATO':     'NSE_EQ|INE758T01015',
 };
 
 // Fetch market quotes from Upstox API (returns null if no token)
@@ -1339,33 +1399,89 @@ function showUpstoxTokenExpired() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// DYNAMIC WATCHLIST — scans 20 NSE stocks, ranks by ORB setup
+// DYNAMIC WATCHLIST — Nifty 50 + popular PSU midcaps (~64 stocks)
 // ═══════════════════════════════════════════════════════════
 const NSE_UNIVERSE = [
-  {upKey:'SAIL',       name:'SAIL',       sector:'Steel·PSU'},
-  {upKey:'IRFC',       name:'IRFC',       sector:'Finance·PSU'},
-  {upKey:'NHPC',       name:'NHPC',       sector:'Power·PSU'},
-  {upKey:'SUZLON',     name:'SUZLON',     sector:'Energy'},
-  {upKey:'BANKBARODA', name:'BANKBARODA', sector:'Banking·PSU'},
-  {upKey:'RVNL',       name:'RVNL',       sector:'Railways·PSU'},
+  // ── Nifty 50: Banking & Finance ──
+  {upKey:'HDFCBANK',   name:'HDFCBANK',   sector:'Banking'},
+  {upKey:'ICICIBANK',  name:'ICICIBANK',  sector:'Banking'},
+  {upKey:'AXISBANK',   name:'AXISBANK',   sector:'Banking'},
+  {upKey:'KOTAKBANK',  name:'KOTAKBANK',  sector:'Banking'},
   {upKey:'SBIN',       name:'SBIN',       sector:'Banking·PSU'},
-  {upKey:'REC',        name:'REC',        sector:'Finance·PSU'},
-  {upKey:'PFC',        name:'PFC',        sector:'Finance·PSU'},
+  {upKey:'INDUSINDBK', name:'INDUSINDBK', sector:'Banking'},
+  {upKey:'BAJFINANCE', name:'BAJFINANCE', sector:'NBFC'},
+  {upKey:'BAJAJFINSV', name:'BAJAJFINSV', sector:'NBFC'},
+  {upKey:'HDFCLIFE',   name:'HDFCLIFE',   sector:'Insurance'},
+  {upKey:'SBILIFE',    name:'SBILIFE',    sector:'Insurance'},
+  {upKey:'SHRIRAMFIN', name:'SHRIRAMFIN', sector:'NBFC'},
+  // ── Nifty 50: IT & Tech ──
+  {upKey:'TCS',        name:'TCS',        sector:'IT'},
+  {upKey:'INFY',       name:'INFY',       sector:'IT'},
+  {upKey:'WIPRO',      name:'WIPRO',      sector:'IT'},
+  {upKey:'HCLTECH',    name:'HCLTECH',    sector:'IT'},
+  {upKey:'TECHM',      name:'TECHM',      sector:'IT'},
+  // ── Nifty 50: Oil, Gas & Energy ──
+  {upKey:'RELIANCE',   name:'RELIANCE',   sector:'Oil·Energy'},
+  {upKey:'ONGC',       name:'ONGC',       sector:'Oil·PSU'},
   {upKey:'BPCL',       name:'BPCL',       sector:'Oil·PSU'},
-  {upKey:'ITC',        name:'ITC',        sector:'FMCG'},
   {upKey:'COALINDIA',  name:'COALINDIA',  sector:'Mining·PSU'},
   {upKey:'NTPC',       name:'NTPC',       sector:'Power·PSU'},
-  {upKey:'VEDL',       name:'VEDL',       sector:'Metals'},
+  {upKey:'POWERGRID',  name:'POWERGRID',  sector:'Power·PSU'},
+  // ── Nifty 50: Auto & Engineering ──
+  {upKey:'TATAMOTORS', name:'TATAMOTORS', sector:'Auto'},
+  {upKey:'MARUTI',     name:'MARUTI',     sector:'Auto'},
+  {upKey:'BAJAJAUTO',  name:'BAJAJAUTO',  sector:'Auto'},
+  {upKey:'HEROMOTOCO', name:'HEROMOTOCO', sector:'Auto'},
+  {upKey:'EICHERMOT',  name:'EICHERMOT',  sector:'Auto'},
+  {upKey:'MAHINDRA',   name:'M&M',        sector:'Auto'},
+  {upKey:'LT',         name:'LT',         sector:'Infra·Engg'},
+  // ── Nifty 50: Metals & Cement ──
   {upKey:'TATASTEEL',  name:'TATASTEEL',  sector:'Steel'},
-  {upKey:'YESBANK',    name:'YESBANK',    sector:'Banking'},
+  {upKey:'JSWSTEEL',   name:'JSWSTEEL',   sector:'Steel'},
+  {upKey:'HINDALCO',   name:'HINDALCO',   sector:'Metals'},
+  {upKey:'GRASIM',     name:'GRASIM',     sector:'Cement'},
+  {upKey:'ULTRACEMCO', name:'ULTRACEMCO', sector:'Cement'},
+  // ── Nifty 50: FMCG & Consumer ──
+  {upKey:'ITC',        name:'ITC',        sector:'FMCG'},
+  {upKey:'HINDUNILVR', name:'HINDUNILVR', sector:'FMCG'},
+  {upKey:'BRITANNIA',  name:'BRITANNIA',  sector:'FMCG'},
+  {upKey:'NESTLEIND',  name:'NESTLEIND',  sector:'FMCG'},
+  {upKey:'TATACONSUM', name:'TATACONSUM', sector:'FMCG'},
+  // ── Nifty 50: Pharma & Healthcare ──
+  {upKey:'SUNPHARMA',  name:'SUNPHARMA',  sector:'Pharma'},
+  {upKey:'CIPLA',      name:'CIPLA',      sector:'Pharma'},
+  {upKey:'DRREDDY',    name:'DRREDDY',    sector:'Pharma'},
+  {upKey:'APOLLOHOSP', name:'APOLLOHOSP', sector:'Healthcare'},
+  // ── Nifty 50: Telecom, Retail & Others ──
+  {upKey:'BHARTIARTL', name:'BHARTIARTL', sector:'Telecom'},
+  {upKey:'ADANIENT',   name:'ADANIENT',   sector:'Conglomerate'},
+  {upKey:'ADANIPORTS', name:'ADANIPORTS', sector:'Ports'},
+  {upKey:'ASIANPAINT', name:'ASIANPAINT', sector:'Paints'},
+  {upKey:'TITAN',      name:'TITAN',      sector:'Consumer'},
+  {upKey:'TRENT',      name:'TRENT',      sector:'Retail'},
+  {upKey:'PIDILITIND', name:'PIDILITIND', sector:'Chemicals'},
+  {upKey:'BEL',        name:'BEL',        sector:'Defence·PSU'},
+  // ── Popular PSU Midcaps (retail ORB favourites) ──
+  {upKey:'IRFC',       name:'IRFC',       sector:'Finance·PSU'},
+  {upKey:'RVNL',       name:'RVNL',       sector:'Railways·PSU'},
+  {upKey:'NHPC',       name:'NHPC',       sector:'Power·PSU'},
+  {upKey:'SUZLON',     name:'SUZLON',     sector:'Energy'},
   {upKey:'ADANIPOWER', name:'ADANIPOWER', sector:'Energy'},
   {upKey:'HAL',        name:'HAL',        sector:'Defence·PSU'},
   {upKey:'IRCTC',      name:'IRCTC',      sector:'Railways·PSU'},
+  {upKey:'PFC',        name:'PFC',        sector:'Finance·PSU'},
+  {upKey:'REC',        name:'REC',        sector:'Finance·PSU'},
+  {upKey:'BANKBARODA', name:'BANKBARODA', sector:'Banking·PSU'},
+  {upKey:'SAIL',       name:'SAIL',       sector:'Steel·PSU'},
+  {upKey:'VEDL',       name:'VEDL',       sector:'Metals'},
+  {upKey:'YESBANK',    name:'YESBANK',    sector:'Banking'},
   {upKey:'VODAIDEA',   name:'VODAIDEA',   sector:'Telecom'},
+  {upKey:'TATAPOWER',  name:'TATAPOWER',  sector:'Power'},
+  {upKey:'ZOMATO',     name:'ZOMATO',     sector:'Consumer·Tech'},
 ];
 
 const livePrices = {};
-let rankedStocks = []; // top 6 after scoring
+let rankedStocks = []; // top 8 after scoring
 
 function getIST() {
   return new Date(new Date().toLocaleString('en-US', {timeZone:'Asia/Kolkata'}));
@@ -1439,16 +1555,38 @@ async function fetchAndRenderWatchlist(tMins, phase) {
         const key = UPSTOX_KEY_MAP[meta.upKey];
         const q   = upData[key];
         if (!q) return null;
-        const price  = q.last_price || 0;
-        const prev   = q.ohlc?.close || q.ohlc?.open || price;
-        const chg    = price - prev;
-        const gapPct = prev > 0 ? ((chg / prev) * 100) : 0;
-        const dayHi  = q.ohlc?.high || price;
-        const dayLo  = q.ohlc?.low  || price;
-        const range  = prev > 0 ? ((dayHi - dayLo) / prev * 100) : 0;
-        const score  = gapPct * 0.6 + range * 0.4;
-        livePrices[meta.name] = { price, chg: +chg.toFixed(2), pct: gapPct.toFixed(2) };
-        return { ...meta, price, prev, chg, gapPct, dayHi, dayLo, range, score };
+        const price   = q.last_price || 0;
+        // net_change is today's change from previous session's close — reliable even after market close
+        // ohlc.close = TODAY's close (same as last_price), so DO NOT use it as prev
+        const netChg  = q.net_change || 0;
+        const prev    = price - netChg;           // true previous session's close
+        const pct     = prev > 0 ? (netChg / prev * 100) : 0;
+        const dayHi   = q.ohlc?.high || price;
+        const dayLo   = q.ohlc?.low  || price;
+        const vol     = q.volume || 0;
+        const avgPx   = q.average_price || price;
+
+        // Day range as % of prev close (volatility / activity)
+        const dayRangePct = prev > 0 ? ((dayHi - dayLo) / prev * 100) : 0;
+        // Where is current price in today's range? 0=at low, 1=at high (breakout readiness)
+        const rangePos    = dayHi > dayLo ? (price - dayLo) / (dayHi - dayLo) : 0.5;
+        // Volume tier bonus (raw volume — NSE stocks have high absolute vol)
+        const volBonus    = vol > 20000000 ? 2 : vol > 8000000 ? 1 : vol > 2000000 ? 0.5 : 0;
+        // Price vs average price today: price > avgPx = buying pressure
+        const priceVsAvg  = avgPx > 0 ? ((price - avgPx) / avgPx * 100) : 0;
+
+        // ── ORBIS SCORING (long-only ORB strategy) ──
+        // 1. Momentum (50%): positive % change from prev close — only long setups matter
+        // 2. Breakout readiness (30%): stock near day high = ready to break out
+        // 3. Activity (20%): day range + volume confirms the move
+        const momentumScore   = Math.max(pct, 0) * 0.5;           // cap at 0 for negative stocks
+        const breakoutScore   = rangePos * dayRangePct * 0.3;     // high range + near high = best
+        const activityScore   = (dayRangePct * 0.15 + volBonus * 0.05);
+        const score = momentumScore + breakoutScore + activityScore;
+
+        livePrices[meta.name] = { price, chg: +netChg.toFixed(2), pct: pct.toFixed(2) };
+        return { ...meta, price, prev, chg: netChg, gapPct: pct, dayHi, dayLo,
+                 range: dayRangePct, rangePos, vol, score };
       }).filter(Boolean);
     }
   }
@@ -1464,9 +1602,9 @@ async function fetchAndRenderWatchlist(tMins, phase) {
     return;
   }
 
-  // Sort descending by score, take top 6
+  // Sort descending by score, take top 8 (wider universe = show more candidates)
   enriched.sort((a, b) => b.score - a.score);
-  rankedStocks = enriched.slice(0, 6);
+  rankedStocks = enriched.slice(0, 8);
 
   // For post-9:30: fetch 5-min intraday candles via Upstox to compute actual ORB levels
   if (tMins >= 570 && isUpstoxTokenValid()) {
@@ -1757,16 +1895,26 @@ async function loadAIAnalysis(){
   const out=document.getElementById('ai-output');
   out.className='ai-loading'; out.textContent='Analyzing market conditions...';
   const now=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
-  const stockLines = rankedStocks.length
-    ? rankedStocks.map(s => {
-        const p = livePrices[s.name];
-        return p ? `${s.name}: ₹${p.price.toFixed(2)} (${p.chg>=0?'+':''}${p.pct}%)` : `${s.name}: price loading`;
-      }).join('\n')
-    : Object.entries(livePrices).slice(0,6).map(([n,p])=>`${n}: ₹${p.price.toFixed(2)} (${p.chg>=0?'+':''}${p.pct}%)`).join('\n') || 'Market closed — no live data';
   const capLine = dailyCapital
     ? `Capital today: ₹${dailyCapital.toLocaleString('en-IN')} | Max risk/trade: ₹${Math.floor(dailyCapital*.02).toLocaleString('en-IN')}`
     : 'Capital: not set';
-  // Fetch fresh news if cache is empty — uses rss2json.com (no proxy needed)
+
+  // Build full live price snapshot — sorted: gainers first, then flat, then losers
+  const allPriceEntries = Object.entries(livePrices)
+    .map(([name, p]) => ({ name, ...p }))
+    .sort((a, b) => parseFloat(b.pct) - parseFloat(a.pct));
+  const gainers  = allPriceEntries.filter(p => parseFloat(p.pct) > 0);
+  const losers   = allPriceEntries.filter(p => parseFloat(p.pct) < 0);
+  const flat     = allPriceEntries.filter(p => parseFloat(p.pct) === 0);
+
+  const fmtLine  = p => `${p.name}: ₹${p.price.toFixed(2)} (${parseFloat(p.pct)>=0?'+':''}${p.pct}%)`;
+  const allPriceLines = [
+    gainers.length  ? `TODAY'S GAINERS:\n${gainers.map(fmtLine).join('\n')}` : '',
+    flat.length     ? `FLAT TODAY:\n${flat.map(fmtLine).join('\n')}` : '',
+    losers.length   ? `TODAY'S LOSERS:\n${losers.map(fmtLine).join('\n')}` : '',
+  ].filter(Boolean).join('\n\n') || 'Market closed — no live data';
+
+  // Fetch fresh news if cache empty
   if (!latestNewsHeadlines.length) {
     try {
       const items = await fetchNewsItems();
@@ -1779,12 +1927,12 @@ async function loadAIAnalysis(){
           return t ? `[${t} IST] ${title}` : title;
         }).filter(Boolean);
       }
-    } catch(e) { /* continue without news if fetch fails */ }
+    } catch(e) { /* continue without news */ }
   }
   const newsSection = latestNewsHeadlines.length
-    ? `\nLATEST MARKET NEWS (ET Markets — use these to inform your signals):\n${latestNewsHeadlines.map((h,i)=>`${i+1}. ${h}`).join('\n')}`
+    ? `\nLATEST NSE/BSE HEADLINES:\n${latestNewsHeadlines.map((h,i)=>`${i+1}. ${h}`).join('\n')}`
     : '';
-  // Update news badge in AI card
+
   const newsBadge = document.getElementById('ai-news-badge');
   if (newsBadge) {
     newsBadge.textContent = `🌐 live web search`;
@@ -1798,41 +1946,39 @@ async function loadAIAnalysis(){
       headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
-        max_tokens:1800,
-        tools:[{
-          type:'web_search_20250305',
-          name:'web_search',
-          max_uses:3
-        }],
+        max_tokens:2000,
+        tools:[{type:'web_search_20250305',name:'web_search',max_uses:3}],
         messages:[{role:'user',content:
-        `You are a concise Indian stock market analyst for a beginner NSE ORB intraday trader using Groww (long equity only, no shorting).
+        `You are an Indian stock market analyst helping a beginner NSE ORB intraday trader on Groww (LONG ONLY — no shorting, no F&O).
 Time: ${now} | ${capLine}
 
-CURRENT LIVE PRICES (use EXACTLY these prices — do not change or invent prices):
-${stockLines}
-${newsSection ? newsSection : ''}
+STEP 1 — SEARCH THE WEB: Use web_search RIGHT NOW to find:
+- "NSE top gainers today ${new Date().toLocaleDateString('en-IN')}"
+- "BSE NSE stock market news today"
+Find which stocks/sectors are ACTUALLY trending today based on real news.
 
-IMPORTANT: Use your web_search tool to search for the latest NSE/BSE market news right now. Search for:
-1. "NSE BSE stock market news today ${new Date().toLocaleDateString('en-IN')}"
-2. Any specific stock names above that have significant moves today
-Use this live news to inform your signals and reasons.
+STEP 2 — CROSS-REFERENCE with these LIVE PRICES from my portfolio universe:
+${allPriceLines}
+${newsSection}
 
-Reply in this EXACT format. No markdown, no asterisks, no dashes, no # headers.
+STEP 3 — PICK the 6 BEST ORB candidates for tomorrow (or today if market open):
+- Must show positive momentum (% gain today)
+- Must be mentioned in news OR show strong breakout pattern
+- Must be suitable for a beginner (avoid very high-price stocks if capital is low)
+- LONG ONLY — only recommend stocks to BUY, never to short
+
+Reply in this EXACT format only. No markdown, no asterisks, no # headers.
 
 STOCK BRIEFING — ${now.split(',')[0]}
 
-For EACH stock listed above, output a block like this (blank line between each block):
-[STOCKNAME] | ₹[EXACT PRICE FROM ABOVE] | [STRONG or WATCH or AVOID]
-Reason: one sentence on momentum or setup — reference relevant news if applicable.
-Tip: one specific action for tomorrow.
+For each of your 6 picks, one block (blank line between blocks):
+[STOCKNAME] | ₹[EXACT PRICE FROM ABOVE — copy as-is] | [STRONG or WATCH or AVOID]
+Reason: why this stock is trending today — cite specific news or price action.
+Tip: one actionable entry/exit instruction for tomorrow's ORB.
 
-After all stock blocks, write a 2-sentence overall market summary referencing today's key news themes.
+After all 6 blocks, one 2-sentence market summary: what themes are driving the market today?
 
-Rules:
-- Use the EXACT price I provided — copy it as-is, do not round or change it
-- STOCKNAME must be ALL CAPS
-- Signal must be exactly one of: STRONG, WATCH, AVOID
-- Keep total reply under 700 words`
+Rules: STOCKNAME in ALL CAPS · price must be EXACT from my list · signal is STRONG/WATCH/AVOID only · under 800 words total`
         }]})
     });
     const data=await res.json();
@@ -2328,14 +2474,12 @@ async function openPosition() {
   if (target <= entry) { alert('Target must be higher than Entry price.'); return; }
   if (sl     >= entry) { alert('Stop Loss must be lower than Entry price.'); return; }
 
-  // Match to NSE_UNIVERSE for Yahoo Finance symbol
-  const match = NSE_UNIVERSE.find(u =>
-    u.name.toUpperCase() === stock || u.sym.split('.')[0].toUpperCase() === stock
-  );
-  const sym = match ? match.sym : `${stock}.NS`;
+  // Match to NSE_UNIVERSE to get Upstox key for live price polling
+  const meta   = NSE_UNIVERSE.find(u => u.name.toUpperCase() === stock || u.upKey === stock);
+  const upKey  = meta ? meta.upKey : stock; // fallback: use stock ticker as key
 
   const pos = {
-    uid: currentUid, stock, sym, entry, target, sl, qty,
+    uid: currentUid, stock, upKey, entry, target, sl, qty,
     currentPrice: entry,
     openTime: new Date().toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata'}),
     openDate: TODAY_DATE,
@@ -2387,8 +2531,9 @@ async function pollPositionPrices() {
   }
   // Use Upstox instrument keys mapped from position stock names
   const instrKeys = [...new Set(openPositions.map(p => {
-    const upKey = NSE_UNIVERSE.find(u => u.name === p.stock || u.sym === p.sym)?.upKey;
-    return upKey ? UPSTOX_KEY_MAP[upKey] : null;
+    // pos.upKey is stored when position is opened; fall back to name-based lookup
+    const uk = p.upKey || NSE_UNIVERSE.find(u => u.name === p.stock)?.upKey;
+    return uk ? UPSTOX_KEY_MAP[uk] : null;
   }))].filter(Boolean);
 
   if (!instrKeys.length) return;
@@ -2403,7 +2548,7 @@ async function pollPositionPrices() {
       const meta = NSE_UNIVERSE.find(u => UPSTOX_KEY_MAP[u.upKey] === matchKey);
       if (!meta) return;
       openPositions
-        .filter(p => (p.stock === meta.name || p.sym === meta.sym) && p.status === 'open')
+        .filter(p => p.stock === meta.name && p.status === 'open')
         .forEach(pos => {
           pos.currentPrice = price;
           if      (price >= pos.target) firePositionAlert(pos, 'TARGET',   price);
