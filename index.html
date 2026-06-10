@@ -566,6 +566,11 @@ service cloud.firestore {
           <span style="margin-left:auto;font-size:10px;">Auto-ranked by gap · Real-time ORB levels</span>
           <button class="refresh-btn" style="margin:0 0 0 8px;font-size:10px;" onclick="loadDynamicWatchlist()">↻</button>
         </div>
+        <!-- Filter pills -->
+        <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+          <button id="wl-filter-orb" class="tab-pill active" onclick="setWatchlistFilter('orb')">🎯 ORB Picks</button>
+          <button id="wl-filter-1k" class="tab-pill" onclick="setWatchlistFilter('1k')">💰 Above ₹1000 (High→Low)</button>
+        </div>
         <div style="overflow-x:auto;">
           <table class="watch-table">
             <thead><tr><th>Rank</th><th>Stock</th><th>Live Price</th><th>Gap %</th><th>ORB Break</th><th>Target</th><th>Stop Loss</th><th>Max Qty</th><th>Signal</th></tr></thead>
@@ -1482,6 +1487,36 @@ const NSE_UNIVERSE = [
 
 const livePrices = {};
 let rankedStocks = []; // top 8 after scoring
+let allEnrichedStocks = []; // full enriched list for filter views
+let watchlistFilter = 'orb'; // 'orb' | '1k'
+
+function setWatchlistFilter(mode) {
+  watchlistFilter = mode;
+  document.getElementById('wl-filter-orb').classList.toggle('active', mode === 'orb');
+  document.getElementById('wl-filter-1k').classList.toggle('active', mode === '1k');
+  renderWatchlistFromCache();
+}
+
+function renderWatchlistFromCache() {
+  const tbody = document.getElementById('watchlist-tbody');
+  if (!allEnrichedStocks.length) return;
+  const tMins = getIST().getHours() * 60 + getIST().getMinutes();
+  const phase = tMins >= 570 && tMins < 885 ? 'ready'
+              : tMins >= 555 ? 'building'
+              : tMins >= 540 ? 'preopen' : 'closed';
+
+  if (watchlistFilter === '1k') {
+    const filtered = allEnrichedStocks.filter(s => s.price > 1000)
+                                      .sort((a, b) => b.price - a.price);
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--muted);font-family:'Space Mono',monospace;font-size:12px;">No stocks above ₹1000 in current data.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = filtered.map((stock, idx) => renderStockRow(stock, idx, phase, false)).join('');
+  } else {
+    tbody.innerHTML = rankedStocks.map((stock, idx) => renderStockRow(stock, idx, phase, true)).join('');
+  }
+}
 
 function getIST() {
   return new Date(new Date().toLocaleString('en-US', {timeZone:'Asia/Kolkata'}));
@@ -1532,6 +1567,59 @@ async function loadDynamicWatchlist() {
     noteEl.innerHTML = '<span style="color:var(--red)">⚠️ 2:45 PM+ EXIT ZONE. Close all positions. No new entries.</span>';
     await fetchAndRenderWatchlist(tMins, 'exit');
   }
+}
+
+function renderStockRow(stock, idx, phase, useSignal) {
+  const rankLabel = idx === 0 ? `<span class="rank-badge rank-1">#1 TOP</span>`
+                  : idx === 1 ? `<span class="rank-badge rank-2">#2</span>`
+                  : idx === 2 ? `<span class="rank-badge rank-3">#3</span>`
+                  : `<span class="rank-badge rank-n">#${idx+1}</span>`;
+
+  const priceHtml = `<div class="live-price-wrap">
+    <div class="live-price ${stock.chg >= 0 ? 'up' : 'down'}">₹${stock.price.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+    <div class="live-chg ${stock.chg >= 0 ? 'up' : 'down'}">${stock.chg >= 0 ? '+' : ''}${stock.chg.toFixed(2)}</div>
+  </div>`;
+
+  const gapHtml = `<span class="${stock.gapPct >= 0 ? 'gap-up' : 'gap-dn'}">${stock.gapPct >= 0 ? '+' : ''}${stock.gapPct.toFixed(2)}%</span>`;
+
+  let orbHtml = '—', tgtHtml = '—', slHtml = '—';
+  if (stock.orbH != null) {
+    const r = stock.orbH - (stock.orbL ?? stock.orbH * 0.99);
+    orbHtml = `<span class="up">₹${stock.orbH.toFixed(2)}</span>`;
+    tgtHtml = `<span class="up">₹${(stock.orbH + r * 1.5).toFixed(2)}</span>`;
+    slHtml  = `<span class="down">₹${(stock.orbH - r * 0.5).toFixed(2)}</span>`;
+  } else if (phase === 'building') {
+    orbHtml = `<span class="neutral" style="font-size:10px;">watching…</span>`;
+  } else if (phase === 'closed' || phase === 'preopen') {
+    orbHtml = `<span class="neutral" style="font-size:10px;">at 9:30</span>`;
+  }
+
+  const maxQty = dailyCapital && stock.price > 0 ? Math.floor(dailyCapital / stock.price) : '—';
+  const qtyHtml = maxQty !== '—' ? `<span class="pos-size">${maxQty} sh</span>` : '—';
+
+  let signal;
+  if (useSignal) {
+    signal = idx === 0 ? `<span class="badge badge-strong">✓ STRONG</span>`
+           : idx <= 2  ? `<span class="badge badge-watch">◎ WATCH</span>`
+           : `<span class="badge" style="background:rgba(84,110,90,.15);color:var(--muted);border:1px solid var(--border);">— MONITOR</span>`;
+  } else {
+    // Price filter view — show price tier badge instead
+    signal = stock.price >= 5000 ? `<span class="badge badge-strong">₹5K+</span>`
+           : stock.price >= 2000 ? `<span class="badge badge-watch">₹2K+</span>`
+           : `<span class="badge" style="background:rgba(84,110,90,.15);color:var(--muted);border:1px solid var(--border);">₹1K+</span>`;
+  }
+
+  return `<tr>
+    <td>${rankLabel}</td>
+    <td><div class="stock-name">${stock.name}</div><div class="stock-sector">${stock.sector}</div></td>
+    <td>${priceHtml}</td>
+    <td>${gapHtml}</td>
+    <td class="price-col">${orbHtml}</td>
+    <td class="price-col">${tgtHtml}</td>
+    <td class="price-col">${slHtml}</td>
+    <td>${qtyHtml}</td>
+    <td>${signal}</td>
+  </tr>`;
 }
 
 async function fetchAndRenderWatchlist(tMins, phase) {
@@ -1602,6 +1690,9 @@ async function fetchAndRenderWatchlist(tMins, phase) {
     return;
   }
 
+  // Store full list for filter views
+  allEnrichedStocks = enriched;
+
   // Sort descending by score, take top 8 (wider universe = show more candidates)
   enriched.sort((a, b) => b.score - a.score);
   rankedStocks = enriched.slice(0, 8);
@@ -1642,52 +1733,8 @@ async function fetchAndRenderWatchlist(tMins, phase) {
     }));
   }
 
-  // Render the table
-  tbody.innerHTML = rankedStocks.map((stock, idx) => {
-    const rankLabel = idx === 0 ? `<span class="rank-badge rank-1">#1 TOP</span>`
-                    : idx === 1 ? `<span class="rank-badge rank-2">#2</span>`
-                    : idx === 2 ? `<span class="rank-badge rank-3">#3</span>`
-                    : `<span class="rank-badge rank-n">#${idx+1}</span>`;
-
-    const priceHtml = `<div class="live-price-wrap">
-      <div class="live-price ${stock.chg >= 0 ? 'up' : 'down'}">₹${stock.price.toFixed(2)}</div>
-      <div class="live-chg ${stock.chg >= 0 ? 'up' : 'down'}">${stock.chg >= 0 ? '+' : ''}${stock.chg.toFixed(2)}</div>
-    </div>`;
-
-    const gapHtml = `<span class="${stock.gapPct >= 0 ? 'gap-up' : 'gap-dn'}">${stock.gapPct >= 0 ? '+' : ''}${stock.gapPct.toFixed(2)}%</span>`;
-
-    let orbHtml = '—', tgtHtml = '—', slHtml = '—';
-    if (stock.orbH != null) {
-      const r = stock.orbH - (stock.orbL ?? stock.orbH * 0.99);
-      orbHtml = `<span class="up">₹${stock.orbH.toFixed(2)}</span>`;
-      tgtHtml = `<span class="up">₹${(stock.orbH + r * 1.5).toFixed(2)}</span>`;
-      slHtml  = `<span class="down">₹${(stock.orbH - r * 0.5).toFixed(2)}</span>`;
-    } else if (phase === 'building') {
-      orbHtml = `<span class="neutral" style="font-size:10px;">watching…</span>`;
-    } else if (phase === 'closed' || phase === 'preopen') {
-      orbHtml = `<span class="neutral" style="font-size:10px;">at 9:30</span>`;
-    }
-
-    // Position sizing
-    const maxQty = dailyCapital && stock.price > 0 ? Math.floor(dailyCapital / stock.price) : '—';
-    const qtyHtml = maxQty !== '—' ? `<span class="pos-size">${maxQty} sh</span>` : '—';
-
-    const signal = idx === 0 ? `<span class="badge badge-strong">✓ STRONG</span>`
-                 : idx <= 2  ? `<span class="badge badge-watch">◎ WATCH</span>`
-                 : `<span class="badge" style="background:rgba(84,110,90,.15);color:var(--muted);border:1px solid var(--border);">— MONITOR</span>`;
-
-    return `<tr>
-      <td>${rankLabel}</td>
-      <td><div class="stock-name">${stock.name}</div><div class="stock-sector">${stock.sector}</div></td>
-      <td>${priceHtml}</td>
-      <td>${gapHtml}</td>
-      <td class="price-col">${orbHtml}</td>
-      <td class="price-col">${tgtHtml}</td>
-      <td class="price-col">${slHtml}</td>
-      <td>${qtyHtml}</td>
-      <td>${signal}</td>
-    </tr>`;
-  }).join('');
+  // Render the table (respects current filter)
+  renderWatchlistFromCache();
 
   // Pre-fill journal stock field with #1 pick
   if (rankedStocks.length > 0) {
