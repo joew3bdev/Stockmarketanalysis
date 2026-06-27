@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Discipline — Trading Desk</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0c1110; --surface:#131b18; --surface2:#1a2521; --border:#243530;
+  --green:#2ecc71; --red:#e74c3c; --yellow:#f1c40f; --blue:#5da9e9;
+  --text:#e6f0ec; --muted:#7c8c85; --accent:#4fd6a0;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;min-height:100vh;font-size:14px;}
+.wrap{max-width:1040px;margin:0 auto;padding:18px 16px 80px;}
+h1{font-size:20px;font-weight:800;letter-spacing:-.3px;}
+h2{font-size:15px;font-weight:700;margin-bottom:12px;color:var(--accent);}
+a{color:var(--accent);}
+.mono{font-family:'SF Mono',ui-monospace,Menlo,monospace;}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 0 16px;border-bottom:1px solid var(--border);margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+.logo span{color:var(--green);}
+.sub{font-size:11px;color:var(--muted);margin-top:3px;}
+.status-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+.spill{font-size:11px;padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:6px;cursor:pointer;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
+.dot.green{background:var(--green);} .dot.red{background:var(--red);} .dot.yellow{background:var(--yellow);}
+.mode-badge{font-size:11px;font-weight:700;padding:6px 12px;border-radius:20px;}
+.mode-badge.paper{background:rgba(241,196,15,.12);border:1px solid var(--yellow);color:var(--yellow);}
+.mode-badge.live{background:rgba(231,76,60,.12);border:1px solid var(--red);color:var(--red);}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;}
+.tab{font-size:13px;padding:8px 15px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;transition:.15s;}
+.tab:hover{color:var(--text);}
+.tab.active{border-color:var(--green);color:var(--green);background:rgba(46,204,113,.08);}
+.panel{display:none;} .panel.active{display:block;animation:fade .2s;}
+@keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;}
+input,select,textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;outline:none;font-family:inherit;}
+input:focus,select:focus,textarea:focus{border-color:var(--green);}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+.field{margin-bottom:14px;}
+button{cursor:pointer;font-family:inherit;}
+.btn{background:var(--green);color:#04130b;border:none;border-radius:8px;font-size:14px;font-weight:700;padding:12px 20px;transition:.15s;}
+.btn:hover{opacity:.9;} .btn:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:8px 14px;font-size:13px;}
+.btn-ghost:hover{color:var(--text);border-color:var(--muted);}
+.btn-red{background:var(--red);color:#fff;border:none;}
+.readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:10px;margin-top:14px;}
+.stat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;}
+.stat .k{font-size:11px;color:var(--muted);margin-bottom:4px;}
+.stat .v{font-size:19px;font-weight:800;}
+.v.good{color:var(--green);} .v.bad{color:var(--red);} .v.warn{color:var(--yellow);}
+.alertbox{border-radius:8px;padding:10px 14px;font-size:13px;margin-top:14px;display:none;line-height:1.5;}
+.alertbox.show{display:block;}
+.alertbox.err{background:rgba(231,76,60,.1);border:1px solid var(--red);color:#ffb4ab;}
+.alertbox.ok{background:rgba(46,204,113,.1);border:1px solid var(--green);color:var(--accent);}
+.alertbox.warn{background:rgba(241,196,15,.1);border:1px solid var(--yellow);color:#ffe57f;}
+.guard{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+.gpill{flex:1;min-width:140px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;}
+.gpill .k{font-size:11px;color:var(--muted);} .gpill .v{font-size:16px;font-weight:800;margin-top:2px;}
+.gpill.locked{border-color:var(--red);} .gpill.locked .v{color:var(--red);}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--border);}
+th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:600;}
+.tag.win{background:rgba(46,204,113,.15);color:var(--green);}
+.tag.loss{background:rgba(231,76,60,.15);color:var(--red);}
+.tag.kept{background:rgba(46,204,113,.15);color:var(--green);}
+.tag.broke{background:rgba(231,76,60,.15);color:var(--red);}
+.up{color:var(--green);} .down{color:var(--red);}
+.empty{text-align:center;color:var(--muted);padding:24px;font-size:13px;}
+.checkrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);}
+.checkrow input{width:auto;} .checkrow label{margin:0;font-size:14px;color:var(--text);cursor:pointer;}
+.note{font-size:12px;color:var(--muted);line-height:1.6;margin-top:10px;}
+.disclaimer{font-size:11px;color:var(--muted);line-height:1.7;border-top:1px solid var(--border);margin-top:30px;padding-top:16px;}
+.inline{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.smol{font-size:12px;color:var(--muted);}
+.idxbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.idx{flex:1;min-width:150px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;}
+.idx .n{font-size:11px;color:var(--muted);} .idx .p{font-size:18px;font-weight:800;margin-top:2px;}
+/* modal */
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center;padding:16px;}
+.modal.show{display:flex;}
+.modal-box{background:var(--surface);border:1px solid var(--green);border-radius:14px;padding:24px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;}
+.modal-box h3{color:var(--green);margin-bottom:14px;}
+.close-x{float:right;background:none;border:none;color:var(--muted);font-size:20px;}
+.steps{font-size:12px;color:var(--muted);line-height:1.9;margin:10px 0;}
+.steps a{color:var(--accent);}
+.live-px{font-size:13px;color:var(--blue);font-weight:700;}
+.alert-pop{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:200;min-width:300px;max-width:92vw;background:var(--surface);border:2px solid var(--yellow);border-radius:12px;padding:14px 18px;box-shadow:0 10px 50px rgba(0,0,0,.7);display:none;}
+.alert-pop.show{display:block;animation:fade .2s;}
+.alert-pop.stop{border-color:var(--red);} .alert-pop.tgt{border-color:var(--green);}
+.alert-pop .t{font-weight:800;font-size:15px;margin-bottom:4px;} .alert-pop .b{font-size:13px;color:var(--muted);}
+.alert-pop .x{float:right;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1 class="logo">DISCIPLINE<span>.</span> <span style="font-weight:400;color:var(--muted);font-size:14px;">trading desk</span></h1>
+    <div class="sub">Risk-first execution — no predictions. The app enforces your rules; the calls stay yours.</div>
+  </div>
+  <div id="mode-badge" class="mode-badge paper">📝 PAPER MODE</div>
+</header>
+
+<div class="status-row">
+  <div class="spill" onclick="go('connect')"><span class="dot" id="upstox-dot"></span><span id="upstox-status-text">⚡ Connect Upstox</span></div>
+  <div class="spill" onclick="go('connect')"><span class="dot" id="notif-dot"></span><span id="notif-status-text">🔔 Alerts off</span></div>
+  <div class="spill" onclick="go('connect')"><span class="dot" id="cloud-dot"></span><span id="cloud-status-text">☁ Local only</span></div>
+  <div class="spill" id="clock" style="cursor:default;"><span class="mono" id="clock-time">--:--</span> · <span id="market-state" class="smol">—</span></div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="prep">① Pre-market</button>
+  <button class="tab" data-tab="trade">② New Trade</button>
+  <button class="tab" data-tab="open">③ Open</button>
+  <button class="tab" data-tab="journal">④ Journal</button>
+  <button class="tab" data-tab="stats">⑤ Stats</button>
+  <button class="tab" data-tab="connect">⚙ Connect</button>
+</div>
+
+<!-- PREP -->
+<div class="panel active" id="p-prep">
+  <div class="idxbar" id="idxbar"></div>
+  <div class="card">
+    <h2>Pre-market checklist</h2>
+    <p class="note" style="margin-top:0;">Tick every box before trading. This is where the edge is built — not in the stock pick.</p>
+    <div id="checklist-rows"></div>
+    <div class="alertbox ok" id="checklist-done">✅ Prep complete. Cleared to log trades today.</div>
+    <button class="btn-ghost" style="margin-top:14px;" onclick="resetChecklist()">Reset checklist</button>
+  </div>
+  <div class="card">
+    <h2>Watchlist <span class="smol" id="wl-live-note"></span></h2>
+    <p class="note" style="margin-top:0;">A small set of liquid large-caps you know well — a starting universe, <b>not a buy list</b>. Set an <b>Alert ↑</b> (your breakout/entry trigger) and/or <b>Alert ↓</b> (support/stop-watch) for any stock; you'll get a banner + sound the moment live price crosses it. Alerts are reminders to <i>check your rule</i> — the app never tells you what to buy.</p>
+    <div id="watchlist-table" style="margin:12px 0;"></div>
+    <div class="inline">
+      <button class="btn-ghost" onclick="refreshWatchlist()">↻ Refresh prices</button>
+      <button class="btn-ghost" onclick="computeORB(true)">⊓ Compute ORB (9:15–9:30)</button>
+      <span class="smol" id="orb-note"></span>
+      <button class="btn-ghost" onclick="editWatchlist()">✎ Edit symbols</button>
+    </div>
+    <div id="wl-edit" style="display:none;margin-top:12px;">
+      <textarea id="watchlist-input" rows="3"></textarea>
+      <button class="btn-ghost" style="margin-top:8px;" onclick="saveWatchlist()">Save watchlist</button>
+    </div>
+  </div>
+</div>
+
+<!-- TRADE -->
+<div class="panel" id="p-trade">
+  <div class="guard" id="guardbar"></div>
+  <div class="card">
+    <h2>② Entry engine — confirm your rule, then size by risk</h2>
+    <div class="grid2">
+      <div class="field"><label>Stock</label><input id="t-stock" list="wl" placeholder="e.g. RELIANCE" oninput="onStockPick()"/><datalist id="wl"></datalist>
+        <div class="live-px" id="t-livepx"></div></div>
+      <div class="field"><label>Setup / reason</label><input id="t-setup" placeholder="e.g. ORB breakout, results gap"/></div>
+    </div>
+
+    <p class="smol" style="margin:6px 0 8px;">Your entry rule — tick only what's TRUE on your chart right now:</p>
+    <div id="rule-rows"></div>
+
+    <div class="grid" style="margin-top:14px;">
+      <div class="field"><label>Entry price (₹)</label><input id="t-entry" type="number" step="0.05" oninput="calc()"/></div>
+      <div class="field"><label>Stop-loss (₹)</label><input id="t-stop" type="number" step="0.05" oninput="calc()"/></div>
+      <div class="field"><label>Target (₹)</label><input id="t-target" type="number" step="0.05" oninput="calc()"/></div>
+    </div>
+    <div class="readout" id="calc-readout"></div>
+    <div class="alertbox" id="calc-alert"></div>
+    <div class="field" style="margin-top:16px;"><label>Notes (optional)</label><input id="t-notes" placeholder="market trend, why this level, how you feel"/></div>
+    <button class="btn" id="open-btn" onclick="openTrade()">Open trade</button>
+  </div>
+</div>
+
+<!-- OPEN -->
+<div class="panel" id="p-open">
+  <div class="card">
+    <h2>③ Exit engine — live monitor <span class="smol" id="poll-note"></span></h2>
+    <p class="note" style="margin-top:0;">Live price vs your stop and target. You'll get a browser alert the moment either is hit — then act. The app won't move your stop for you.</p>
+    <div id="open-list" style="margin-top:12px;"></div>
+  </div>
+</div>
+
+<!-- JOURNAL -->
+<div class="panel" id="p-journal">
+  <div class="card">
+    <h2>④ Trade journal</h2>
+    <div class="inline" style="margin-bottom:12px;"><button class="btn-ghost" onclick="exportCSV()">⬇ Export CSV</button></div>
+    <div id="journal-list"></div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="panel" id="p-stats">
+  <div class="card"><h2>Performance</h2><div class="readout" id="stats-readout"></div></div>
+  <div class="card"><h2>Equity curve (cumulative P&L)</h2><canvas id="equity-chart" height="120"></canvas></div>
+  <div class="card"><h2>Discipline check — does following your rules pay off?</h2><div class="readout" id="rule-readout"></div>
+    <p class="note">If "rule-followed" trades make money and "rule-broken" ones lose it, your rules work — your only job is to follow them.</p></div>
+</div>
+
+<!-- CONNECT -->
+<div class="panel" id="p-connect">
+  <div class="card">
+    <h2>Mode</h2>
+    <div class="inline">
+      <select id="mode-select" onchange="setMode()" style="width:auto;">
+        <option value="paper">📝 Paper (practice, no real money)</option>
+        <option value="live">🔴 Live (you place real orders in your broker)</option>
+      </select>
+    </div>
+    <p class="note">This app never places orders. "Live" only changes the label so you log real trades separately from practice ones. Build a positive edge on paper first.</p>
+  </div>
+
+  <div class="card">
+    <h2>⚡ Upstox — live prices</h2>
+    <p class="note" style="margin-top:0;">Optional. Gives real-time NSE prices for your watchlist and live exit monitoring. Without it, type prices manually.</p>
+    <div class="inline" style="margin:10px 0;"><span class="dot" id="upstox-dot2"></span><span id="upstox-status-text2" class="smol">Not connected</span></div>
+    <button class="btn-ghost" onclick="showUpstoxModal()">Connect / refresh token</button>
+  </div>
+
+  <div class="card">
+    <h2>🔔 Alerts</h2>
+    <p class="note" style="margin-top:0;">An in-app pop-up banner + sound fires the instant an open position hits its stop or target — this always works, no permission needed. "Enable" below also turns on OS desktop pop-ups (needs http/localhost; usually blocked when the file is opened directly).</p>
+    <div class="inline" style="margin:10px 0;"><span class="dot" id="notif-dot2"></span><span id="notif-status-text2" class="smol">Off</span></div>
+    <button class="btn-ghost" onclick="enableNotifications()">Enable browser alerts</button>
+    <button class="btn-ghost" onclick="testNotif()">Send test alert</button>
+  </div>
+
+  <div class="card">
+    <h2>☁ Cloud sync (optional)</h2>
+    <p class="note" style="margin-top:0;">Sync your journal across devices with your own Firebase project. Leave blank to keep everything only in this browser.</p>
+    <div id="cloud-loggedout">
+      <div class="field" style="margin-top:10px;"><label>Firebase config (paste object or JSON)</label><textarea id="fb-config" rows="3" placeholder='{ "apiKey": "...", "projectId": "...", ... }'></textarea></div>
+      <button class="btn-ghost" onclick="saveFbConfig()">Save config</button>
+      <div id="fb-login" style="display:none;margin-top:14px;">
+        <div class="grid2">
+          <div class="field"><label>Email</label><input id="fb-email" type="email"/></div>
+          <div class="field"><label>Password</label><input id="fb-pass" type="password"/></div>
+        </div>
+        <button class="btn-ghost" onclick="fbLogin()">Sign in & sync</button>
+      </div>
+      <div class="alertbox" id="fb-msg"></div>
+    </div>
+    <div id="cloud-loggedin" style="display:none;">
+      <p class="smol">☁ Synced as <b id="fb-user"></b>. <button class="btn-ghost" onclick="fbLogout()" style="margin-left:8px;">Sign out</button></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Risk settings</h2>
+    <div class="grid">
+      <div class="field"><label>Capital (₹)</label><input id="s-capital" type="number" value="50000"/></div>
+      <div class="field"><label>Risk per trade (%)</label><input id="s-risk" type="number" step="0.25" value="1"/></div>
+      <div class="field"><label>Max daily loss (%)</label><input id="s-maxloss" type="number" step="0.5" value="3"/></div>
+      <div class="field"><label>Max trades / day</label><input id="s-maxtrades" type="number" value="3"/></div>
+      <div class="field"><label>Min reward:risk (R)</label><input id="s-minrr" type="number" step="0.25" value="1.5"/></div>
+    </div>
+    <button class="btn" onclick="saveSettings()">Save settings</button>
+    <span id="setup-saved" class="smol" style="margin-left:12px;"></span>
+    <div class="inline" style="margin-top:18px;">
+      <button class="btn-ghost btn-red" onclick="wipeAll()">⚠ Erase all data</button>
+    </div>
+  </div>
+</div>
+
+<div class="disclaimer">
+  <b>This is a practice &amp; discipline tool, not financial advice.</b> It does not predict prices, recommend stocks, or place orders.
+  Most individual intraday traders lose money over time. Prove a positive edge here — across many trades — before risking real capital,
+  and never risk money you can't afford to lose.
+</div>
+</div>
+
+<!-- UPSTOX MODAL -->
+<div class="modal" id="upstox-modal">
+  <div class="modal-box">
+    <button class="close-x" onclick="closeUpstoxModal()">×</button>
+    <h3>⚡ Connect Upstox</h3>
+    <div class="steps">
+      Easiest: paste a token from <a href="https://developer.upstox.com" target="_blank">developer.upstox.com</a> → your app → <b>Get Token</b>.
+    </div>
+    <div class="field"><label>Access token</label><textarea id="upstox-manual-token" rows="3" placeholder="paste access token"></textarea></div>
+    <button class="btn" onclick="upstoxSaveManualToken()">Save &amp; test token</button>
+    <div class="alertbox" id="upstox-token-status"></div>
+  </div>
+</div>
+
+<script>
+// ════════ STORAGE (reuses ORBIS keys so existing Upstox connection carries over) ════════
+const LS={get:(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}},
+          set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+const K={settings:'dt2_settings',trades:'dt2_trades',opens:'dt2_opens',watchlist:'dt2_watchlist_v2',checks:'dt2_checks',mode:'dt2_mode',wlAlerts:'dt2_wlalerts',orb:'dt2_orb'};
+const FB_CONFIG_KEY='orb_firebase_config';
+
+// 20 fixed stocks — selected by objective criteria (liquidity, F&O eligibility,
+// intraday tradability, beginner-friendly price, sector spread). NOT predictions.
+// See WATCHLIST_RESEARCH.md for the full methodology.
+const DEFAULT_WL=["RELIANCE","HDFCBANK","ICICIBANK","SBIN","AXISBANK","KOTAKBANK","BAJFINANCE","INFY","TCS","WIPRO","BHARTIARTL","ITC","TATAMOTORS","M&M","TATASTEEL","HINDALCO","JSWSTEEL","NTPC","ONGC","BEL"];
+const CHECKLIST=[
+  "Capital and daily loss limit are set",
+  "I've noted the market trend (Nifty up / down / flat)",
+  "My watchlist and key levels are ready",
+  "I know my max trades and will STOP at the loss limit",
+  "I'm calm — not tired, not revenge-trading a previous loss"
+];
+const RULES=[
+  "Price has broken ABOVE my level (e.g. opening-range high)",
+  "The breakout candle CLOSED above the level (not just a wick)",
+  "Volume is above its recent average (confirmation)",
+  "Overall market trend is NOT against me",
+  "It's within my trade window (not the last 30 min)"
+];
+
+let settings=LS.get(K.settings,{capital:50000,risk:1,maxloss:3,maxtrades:3,minrr:1.5});
+let trades  =LS.get(K.trades,[]);
+let opens   =LS.get(K.opens,[]);
+let watchlist=LS.get(K.watchlist,DEFAULT_WL);
+let checks  =LS.get(K.checks,{});
+let wlAlerts=LS.get(K.wlAlerts,{});
+let orbCache=LS.get(K.orb,{date:'',data:{}});
+function getIST(){return new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));}
+let mode    =LS.get(K.mode,'live');
+let dayKey  =new Date().toISOString().slice(0,10);
+const $=id=>document.getElementById(id);
+
+// ════════ UPSTOX (reused from ORBIS) ════════
+const UPSTOX_KEY_MAP={
+ 'NIFTY50':'NSE_INDEX|Nifty 50','BANKNIFTY':'NSE_INDEX|Nifty Bank',
+ 'HDFCBANK':'NSE_EQ|INE040A01034','ICICIBANK':'NSE_EQ|INE090A01021','AXISBANK':'NSE_EQ|INE238A01034','KOTAKBANK':'NSE_EQ|INE237A01028','SBIN':'NSE_EQ|INE062A01020','INDUSINDBK':'NSE_EQ|INE095A01012','BAJFINANCE':'NSE_EQ|INE296A01024','BAJAJFINSV':'NSE_EQ|INE918I01026','HDFCLIFE':'NSE_EQ|INE795G01014','SBILIFE':'NSE_EQ|INE123W01016','SHRIRAMFIN':'NSE_EQ|INE721A01013',
+ 'TCS':'NSE_EQ|INE467B01029','INFY':'NSE_EQ|INE009A01021','WIPRO':'NSE_EQ|INE075A01022','HCLTECH':'NSE_EQ|INE860A01027','TECHM':'NSE_EQ|INE669C01036',
+ 'RELIANCE':'NSE_EQ|INE002A01018','ONGC':'NSE_EQ|INE213A01029','BPCL':'NSE_EQ|INE029A01011','COALINDIA':'NSE_EQ|INE522F01014','NTPC':'NSE_EQ|INE733E01010','POWERGRID':'NSE_EQ|INE752E01010',
+ 'TATAMOTORS':'NSE_EQ|INE155A01022','MARUTI':'NSE_EQ|INE585B01010','BAJAJAUTO':'NSE_EQ|INE917I01010','HEROMOTOCO':'NSE_EQ|INE158A01026','EICHERMOT':'NSE_EQ|INE066A01021','M&M':'NSE_EQ|INE101A01026','MAHINDRA':'NSE_EQ|INE101A01026','LT':'NSE_EQ|INE018A01030',
+ 'TATASTEEL':'NSE_EQ|INE081A01012','JSWSTEEL':'NSE_EQ|INE019A01038','HINDALCO':'NSE_EQ|INE038A01020','GRASIM':'NSE_EQ|INE047A01021','ULTRACEMCO':'NSE_EQ|INE481G01011',
+ 'ITC':'NSE_EQ|INE154A01025','HINDUNILVR':'NSE_EQ|INE030A01027','BRITANNIA':'NSE_EQ|INE216A01030','NESTLEIND':'NSE_EQ|INE239A01016','TATACONSUM':'NSE_EQ|INE192A01025',
+ 'SUNPHARMA':'NSE_EQ|INE044A01036','CIPLA':'NSE_EQ|INE059A01026','DRREDDY':'NSE_EQ|INE089A01023','APOLLOHOSP':'NSE_EQ|INE437A01024',
+ 'BHARTIARTL':'NSE_EQ|INE397D01024','ADANIENT':'NSE_EQ|INE423A01024','ADANIPORTS':'NSE_EQ|INE742F01042','ASIANPAINT':'NSE_EQ|INE021A01026','TITAN':'NSE_EQ|INE280A01028','TRENT':'NSE_EQ|INE849A01020','PIDILITIND':'NSE_EQ|INE318A01026','BEL':'NSE_EQ|INE263A01024',
+ 'IRFC':'NSE_EQ|INE053F01010','RVNL':'NSE_EQ|INE415G01027','NHPC':'NSE_EQ|INE848E01016','SUZLON':'NSE_EQ|INE040H01021','ADANIPOWER':'NSE_EQ|INE814H01011','HAL':'NSE_EQ|INE066F01020','IRCTC':'NSE_EQ|INE335Y01020','PFC':'NSE_EQ|INE134E01011','REC':'NSE_EQ|INE020B01018','BANKBARODA':'NSE_EQ|INE028A01039','SAIL':'NSE_EQ|INE114A01011','VEDL':'NSE_EQ|INE205A01025','TATAPOWER':'NSE_EQ|INE245A01021','ZOMATO':'NSE_EQ|INE758T01015'
+};
+const KEY_TO_SYM={}; Object.entries(UPSTOX_KEY_MAP).forEach(([s,k])=>KEY_TO_SYM[k]=s);
+function getUpstoxToken(){return localStorage.getItem('orb_upstox_token')||'';}
+function setUpstoxToken(t){localStorage.setItem('orb_upstox_token',t.trim());}
+function isUpstoxTokenValid(){const t=getUpstoxToken();if(!t)return false;try{const p=JSON.parse(atob(t.split('.')[1]));return p.exp&&p.exp*1000>Date.now();}catch(e){return false;}}
+function fetchWithTimeout(input,init,ms=8000){return Promise.race([fetch(input,init),new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);}
+async function fetchUpstoxQuotes(keys){
+  const token=getUpstoxToken(); if(!token||!isUpstoxTokenValid())return null;
+  try{
+    const res=await fetchWithTimeout(`https://api.upstox.com/v2/market-quote/quotes?symbol=${encodeURIComponent(keys.join(','))}`,
+      {headers:{'Authorization':`Bearer ${token}`,'Accept':'application/json'}},8000);
+    if(!res.ok)return null;
+    const data=await res.json(); const raw=data?.data; if(!raw)return null;
+    const out={}; for(const v of Object.values(raw)){if(v.instrument_token)out[v.instrument_token]=v;} return out;
+  }catch(e){return null;}
+}
+function showUpstoxModal(){$('upstox-manual-token').value=getUpstoxToken();$('upstox-token-status').className='alertbox';$('upstox-modal').classList.add('show');}
+function closeUpstoxModal(){$('upstox-modal').classList.remove('show');}
+async function upstoxSaveManualToken(){
+  const token=$('upstox-manual-token').value.trim(); const el=$('upstox-token-status');
+  const show=(m,c)=>{el.className='alertbox show '+c;el.innerHTML=m;};
+  if(!token){show('⚠ Paste your access token first.','warn');return;}
+  try{const p=JSON.parse(atob(token.split('.')[1]));if(p.exp*1000<Date.now()){show('❌ Token expired. Get a fresh one at <a href="https://developer.upstox.com" target="_blank">developer.upstox.com</a>.','err');return;}}catch(e){}
+  show('⏳ Testing…','warn');
+  try{
+    const r=await fetchWithTimeout(`https://api.upstox.com/v2/market-quote/quotes?symbol=${encodeURIComponent('NSE_INDEX|Nifty 50')}`,
+      {headers:{'Authorization':`Bearer ${token}`,'Accept':'application/json'}},10000);
+    const d=await r.json();
+    if(!r.ok||d.status==='error')throw new Error(d.message||('HTTP '+r.status));
+    setUpstoxToken(token); show('✅ Connected! Live data active.','ok'); updateConnStatus();
+    setTimeout(()=>{closeUpstoxModal();refreshWatchlist();loadIndices();},1000);
+  }catch(e){show('❌ '+e.message,'err');}
+}
+
+// ════════ ALERTS — in-app banner + sound (always works), plus OS notification if allowed ════════
+let notifReady=false;
+function notifAllowed(){return 'Notification' in window && Notification.permission==='granted';}
+function beep(){try{const a=new (window.AudioContext||window.webkitAudioContext)();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.type='square';o.frequency.value=880;g.gain.value=.15;o.start();let i=0;const iv=setInterval(()=>{o.frequency.value=(i++%2)?880:1175;if(i>5){clearInterval(iv);o.stop();a.close();}},150);}catch(e){}}
+let _alertEl;
+function inPageAlert(title,body,kind){
+  if(!_alertEl){_alertEl=document.createElement('div');document.body.appendChild(_alertEl);}
+  _alertEl.className='alert-pop show '+(kind||'');
+  _alertEl.innerHTML=`<span class="x" onclick="this.parentNode.classList.remove('show')">×</span><div class="t">${title}</div><div class="b">${body}</div>`;
+  clearTimeout(_alertEl._t);_alertEl._t=setTimeout(()=>_alertEl.classList.remove('show'),15000);
+}
+let _titleFlash;
+function flashTitle(msg){clearInterval(_titleFlash);const orig='Discipline — Trading Desk';let on=false,n=0;
+  _titleFlash=setInterval(()=>{document.title=(on=!on)?msg:orig;if(++n>12){clearInterval(_titleFlash);document.title=orig;}},700);}
+function fireNotif(title,body,kind){
+  beep(); inPageAlert(title,body,kind); flashTitle('🔔 '+title);
+  if(notifAllowed()){try{new Notification(title,{body});}catch(e){}}
+}
+async function enableNotifications(){
+  let perm='unsupported';
+  if('Notification' in window){perm=Notification.permission; if(perm!=='granted'){try{perm=await Notification.requestPermission();}catch(e){}}}
+  notifReady=perm==='granted'; updateConnStatus();
+  if(notifReady){fireNotif('🔔 Alerts enabled','Desktop + in-app alerts are on. Stop/target hits will pop up with sound.','tgt');}
+  else{
+    inPageAlert('🔔 In-app alerts active','Desktop pop-ups are blocked — this is normal when you open the file directly (file://). The in-app banner + sound will still alert you on every stop/target. For desktop pop-ups too, run the app on localhost (ask me for the one-line command).','');
+    beep();
+  }
+}
+function testNotif(){fireNotif('🔔 Test alert','If you see this banner and hear a beep, alerts are working.','tgt');}
+
+// ════════ FIREBASE (optional cloud sync) ════════
+let fbApp,fbAuth,fbDb,fbUid='';
+function getFbConfig(){try{return JSON.parse(localStorage.getItem(FB_CONFIG_KEY));}catch(e){return null;}}
+function initFb(cfg){try{fbApp=firebase.initializeApp(cfg);fbAuth=firebase.auth();fbDb=firebase.firestore();
+  fbAuth.onAuthStateChanged(u=>{if(u){fbUid=u.uid;onFbLogin(u);}else{fbUid='';}updateConnStatus();});return true;}catch(e){return false;}}
+function saveFbConfig(){
+  const raw=$('fb-config').value.trim(); const msg=$('fb-msg');
+  try{let cfg;try{cfg=JSON.parse(raw);}catch{cfg=JSON.parse('{'+raw.replace(/([{,]\s*)([a-zA-Z_]\w*)\s*:/g,'$1"$2":').replace(/'/g,'"').replace(/,\s*}/g,'}').replace(/^\{|\}$/g,'')+'}');}
+    if(!cfg.apiKey||!cfg.projectId)throw new Error('Missing apiKey or projectId.');
+    localStorage.setItem(FB_CONFIG_KEY,JSON.stringify(cfg));
+    if(initFb(cfg)){$('fb-login').style.display='block';msg.className='alertbox show ok';msg.textContent='✅ Config saved. Sign in to sync.';}
+    else throw new Error('Init failed.');
+  }catch(e){msg.className='alertbox show err';msg.textContent='❌ '+e.message;}
+}
+async function fbLogin(){
+  const msg=$('fb-msg');
+  try{await fbAuth.signInWithEmailAndPassword($('fb-email').value.trim(),$('fb-pass').value);}
+  catch(e){msg.className='alertbox show err';msg.textContent='❌ '+e.message;}
+}
+async function onFbLogin(u){
+  $('cloud-loggedout').style.display='none';$('cloud-loggedin').style.display='block';$('fb-user').textContent=u.email;
+  try{const doc=await fbDb.collection('discipline_app').doc(u.uid).get();
+    if(doc.exists){const d=doc.data();
+      if(Array.isArray(d.trades))trades=d.trades; if(Array.isArray(d.opens))opens=d.opens;
+      if(d.settings)settings=d.settings; if(Array.isArray(d.watchlist))watchlist=d.watchlist;
+      persistLocal();loadSettingsUI();renderAll();}
+    else cloudSave();
+  }catch(e){console.warn(e);}
+}
+function fbLogout(){if(fbAuth)fbAuth.signOut();$('cloud-loggedin').style.display='none';$('cloud-loggedout').style.display='block';}
+function cloudSave(){if(fbUid&&fbDb){fbDb.collection('discipline_app').doc(fbUid).set({trades,opens,settings,watchlist,updated:Date.now()}).catch(e=>{});}}
+
+// ════════ PERSIST ════════
+function persistLocal(){LS.set(K.trades,trades);LS.set(K.opens,opens);LS.set(K.settings,settings);LS.set(K.watchlist,watchlist);}
+function persist(){persistLocal();cloudSave();}
+
+// ════════ NAV ════════
+function go(tab){document.querySelector(`.tab[data-tab="${tab}"]`).click();}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');$('p-'+t.dataset.tab).classList.add('active');
+  const tab=t.dataset.tab;
+  if(tab==='stats')renderStats(); if(tab==='trade'){renderGuard();renderRules();calc();}
+  if(tab==='open')renderOpen(); if(tab==='journal')renderJournal();
+  if(tab==='prep'){renderWatchlist();loadIndices();}
+});
+
+// ════════ SETTINGS ════════
+function loadSettingsUI(){$('s-capital').value=settings.capital;$('s-risk').value=settings.risk;$('s-maxloss').value=settings.maxloss;$('s-maxtrades').value=settings.maxtrades;$('s-minrr').value=settings.minrr;$('mode-select').value=mode;}
+function saveSettings(){settings={capital:+$('s-capital').value||0,risk:+$('s-risk').value||0,maxloss:+$('s-maxloss').value||0,maxtrades:+$('s-maxtrades').value||0,minrr:+$('s-minrr').value||0};persist();$('setup-saved').textContent='✓ saved';setTimeout(()=>$('setup-saved').textContent='',1500);renderGuard();calc();}
+function setMode(){mode=$('mode-select').value;LS.set(K.mode,mode);updateModeBadge();}
+function updateModeBadge(){const b=$('mode-badge');b.className='mode-badge '+(mode==='live'?'live':'paper');b.textContent=mode==='live'?'🔴 LIVE MODE':'📝 PAPER MODE';}
+
+// ════════ CHECKLIST ════════
+function renderChecklist(){const c=$('checklist-rows');c.innerHTML='';
+  CHECKLIST.forEach((txt,i)=>{const r=document.createElement('div');r.className='checkrow';
+    r.innerHTML=`<input type="checkbox" id="ck${i}" ${checks[i]?'checked':''}/><label for="ck${i}">${txt}</label>`;
+    r.querySelector('input').onchange=e=>{checks[i]=e.target.checked;LS.set(K.checks,checks);checkDone();};c.appendChild(r);});checkDone();}
+function checkDone(){const d=CHECKLIST.every((_,i)=>checks[i]);$('checklist-done').classList.toggle('show',d);return d;}
+function resetChecklist(){checks={};LS.set(K.checks,checks);renderChecklist();}
+
+// ════════ RULE CHECKLIST (entry) ════════
+let ruleState={};
+function renderRules(){const c=$('rule-rows');c.innerHTML='';
+  RULES.forEach((txt,i)=>{const r=document.createElement('div');r.className='checkrow';
+    r.innerHTML=`<input type="checkbox" id="rk${i}" ${ruleState[i]?'checked':''}/><label for="rk${i}">${txt}</label>`;
+    r.querySelector('input').onchange=e=>{ruleState[i]=e.target.checked;calc();};c.appendChild(r);});}
+function rulesMet(){return RULES.every((_,i)=>ruleState[i]);}
+
+// ════════ WATCHLIST ════════
+let livePrices={};
+function renderWatchlist(){
+  $('watchlist-input').value=watchlist.join(', ');
+  const dl=$('wl');dl.innerHTML='';watchlist.forEach(s=>{const o=document.createElement('option');o.value=s;dl.appendChild(o);});
+  const el=$('watchlist-table');
+  el.innerHTML='<table><thead><tr><th>Symbol</th><th>Live price</th><th>Change</th><th>ORB range (9:15–9:30)</th><th>Alert ↑ buy/breakout</th><th>Alert ↓ support/stop</th></tr></thead><tbody>'+
+    watchlist.map(s=>{const p=livePrices[s];const a=wlAlerts[s]||{};const o=orbCache.data&&orbCache.data[s];
+      const orbHtml=o?`<span class="up">₹${o.h.toFixed(2)}</span> / <span class="down">₹${o.l.toFixed(2)}</span> <button class="btn-ghost" style="padding:2px 7px;font-size:11px;" onclick="alertsFromORB('${s}')">→ alerts</button>`:'<span class="smol">—</span>';
+      return `<tr>
+      <td><b>${s}</b></td>
+      <td id="wlpx-${s}">${p?'₹'+p.price.toFixed(2):'<span class="smol">—</span>'}</td>
+      <td id="wlchg-${s}" class="${p&&p.chg>=0?'up':'down'}">${p?(p.chg>=0?'+':'')+p.pct.toFixed(2)+'%':''}</td>
+      <td>${orbHtml}</td>
+      <td><input type="number" step="0.05" id="alup-${s}" value="${a.above||''}" placeholder="₹" style="width:90px;padding:6px 8px;" onchange="setWlAlert('${s}')"/></td>
+      <td><input type="number" step="0.05" id="aldn-${s}" value="${a.below||''}" placeholder="₹" style="width:90px;padding:6px 8px;" onchange="setWlAlert('${s}')"/></td>
+    </tr>`;}).join('')+'</tbody></table>';
+}
+function setWlAlert(s){
+  const up=parseFloat(($('alup-'+s)||{}).value)||null, dn=parseFloat(($('aldn-'+s)||{}).value)||null;
+  if(!up&&!dn) delete wlAlerts[s];
+  else{const ex=wlAlerts[s]||{};wlAlerts[s]={above:up,below:dn,firedAbove:up===ex.above?ex.firedAbove:false,firedBelow:dn===ex.below?ex.firedBelow:false};}
+  LS.set(K.wlAlerts,wlAlerts);
+}
+function updateWlPrices(){
+  watchlist.forEach(s=>{const p=livePrices[s];const px=$('wlpx-'+s),ch=$('wlchg-'+s);if(!p||!px)return;
+    px.textContent='₹'+p.price.toFixed(2);
+    if(ch){ch.className=p.chg>=0?'up':'down';ch.textContent=(p.chg>=0?'+':'')+p.pct.toFixed(2)+'%';}});
+}
+function checkWlAlerts(){
+  let changed=false;
+  Object.keys(wlAlerts).forEach(s=>{const p=livePrices[s];const a=wlAlerts[s];if(!p)return;
+    if(a.above){ if(!a.firedAbove&&p.price>=a.above){a.firedAbove=true;changed=true;fireNotif('🔔 '+s+' hit ₹'+a.above+' ↑',`${s} crossed your level — now ₹${p.price.toFixed(2)}. Check your entry rule before acting.`,'tgt');}
+      if(p.price<a.above&&a.firedAbove){a.firedAbove=false;changed=true;} }
+    if(a.below){ if(!a.firedBelow&&p.price<=a.below){a.firedBelow=true;changed=true;fireNotif('🔔 '+s+' hit ₹'+a.below+' ↓',`${s} fell to your level — now ₹${p.price.toFixed(2)}.`,'stop');}
+      if(p.price>a.below&&a.firedBelow){a.firedBelow=false;changed=true;} }
+  });
+  if(changed)LS.set(K.wlAlerts,wlAlerts);
+}
+function editWatchlist(){const e=$('wl-edit');e.style.display=e.style.display==='none'?'block':'none';}
+function saveWatchlist(){watchlist=$('watchlist-input').value.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);persist();renderWatchlist();}
+async function fetchWlPrices(){
+  if(!isUpstoxTokenValid())return false;
+  const keys=watchlist.map(s=>UPSTOX_KEY_MAP[s]).filter(Boolean);
+  const data=await fetchUpstoxQuotes(keys); if(!data)return false;
+  for(const[key,v]of Object.entries(data)){const sym=KEY_TO_SYM[key];if(!sym)continue;
+    const price=v.last_price||0,net=v.net_change||0,prev=price-net;livePrices[sym]={price,chg:net,pct:prev>0?net/prev*100:0};}
+  return true;
+}
+async function refreshWatchlist(){
+  const ok=await fetchWlPrices();
+  $('wl-live-note').textContent= ok ? '— live ⚡ '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})
+                                    : (isUpstoxTokenValid()?'':'— connect Upstox for live prices');
+  renderWatchlist(); if(ok)checkWlAlerts();
+}
+async function pollWatchlist(){const ok=await fetchWlPrices();if(ok){updateWlPrices();checkWlAlerts();}}
+
+// ── Opening-range breakout: compute 9:15–9:30 IST high/low per stock (cached per day) ──
+async function computeORB(force){
+  const note=$('orb-note');
+  if(!isUpstoxTokenValid()){if(note)note.textContent='— connect Upstox to compute ORB';return;}
+  const ist=getIST(); const today=ist.toISOString().slice(0,10); const m=ist.getHours()*60+ist.getMinutes();
+  const wd=ist.getDay()>=1&&ist.getDay()<=5;
+  if(!force&&orbCache.date===today&&Object.keys(orbCache.data||{}).length){renderWatchlist();return;}
+  if(wd&&m<570&&m>=540){if(note)note.textContent='— opening range still forming, ready at 9:30';}
+  if(note&&note.textContent.indexOf('forming')<0)note.textContent='computing…';
+  const token=getUpstoxToken(); const results={};
+  await Promise.allSettled(watchlist.map(async s=>{
+    const key=UPSTOX_KEY_MAP[s]; if(!key)return;
+    try{
+      const res=await fetchWithTimeout(`https://api.upstox.com/v2/historical-candle/intraday/${key}/1minute`,
+        {headers:{'Authorization':'Bearer '+token,'Accept':'application/json'}},9000);
+      if(!res.ok)return; const data=await res.json(); const candles=data?.data?.candles||[];
+      let h=null,l=null;
+      for(const c of candles){const d=new Date(c[0]); const t=(d.getUTCHours()*60+d.getUTCMinutes()+330)%1440;
+        if(t>=555&&t<570){ if(c[2]!=null&&(h===null||c[2]>h))h=c[2]; if(c[3]!=null&&(l===null||c[3]<l))l=c[3]; }}
+      if(h!=null&&l!=null)results[s]={h,l};
+    }catch(e){}
+  }));
+  if(Object.keys(results).length){orbCache={date:today,data:results};LS.set(K.orb,orbCache);
+    if(note)note.textContent='ORB ⚡ '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}
+  else if(note)note.textContent='— no 9:15–9:30 data yet (market closed or pre-9:30)';
+  renderWatchlist();
+}
+function alertsFromORB(s){
+  const o=orbCache.data&&orbCache.data[s]; if(!o)return;
+  wlAlerts[s]={above:o.h,below:o.l,firedAbove:false,firedBelow:false}; LS.set(K.wlAlerts,wlAlerts);
+  const up=$('alup-'+s),dn=$('aldn-'+s); if(up)up.value=o.h.toFixed(2); if(dn)dn.value=o.l.toFixed(2);
+}
+async function loadIndices(){
+  const bar=$('idxbar');
+  if(!isUpstoxTokenValid()){bar.innerHTML='<div class="idx"><div class="n">Market data</div><div class="p smol" style="font-size:13px;">Connect Upstox in ⚙ for live indices</div></div>';return;}
+  const data=await fetchUpstoxQuotes(['NSE_INDEX|Nifty 50','NSE_INDEX|Nifty Bank']);
+  if(!data){bar.innerHTML='';return;}
+  const fmt=(k,n)=>{const v=data[k];if(!v)return '';const net=v.net_change||0,prev=(v.last_price||0)-net,pct=prev>0?net/prev*100:0;
+    return `<div class="idx"><div class="n">${n}</div><div class="p ${net>=0?'up':'down'}">${(v.last_price||0).toLocaleString('en-IN')} <span style="font-size:12px;">(${net>=0?'+':''}${pct.toFixed(2)}%)</span></div></div>`;};
+  bar.innerHTML=fmt('NSE_INDEX|Nifty 50','NIFTY 50')+fmt('NSE_INDEX|Nifty Bank','BANK NIFTY');
+}
+function onStockPick(){const s=$('t-stock').value.trim().toUpperCase();const p=livePrices[s];
+  $('t-livepx').textContent=p?`live ₹${p.price.toFixed(2)} (${p.chg>=0?'+':''}${p.pct.toFixed(2)}%)`:'';
+  if(p&&!$('t-entry').value){/* leave entry for user */}}
+
+// ════════ GUARDRAILS ════════
+function todayClosed(){return trades.filter(t=>t.day===dayKey);}
+function tradesUsedToday(){return todayClosed().length+opens.filter(o=>o.day===dayKey).length;}
+function realizedToday(){return todayClosed().reduce((s,t)=>s+t.pnl,0);}
+function guardStatus(){const used=tradesUsedToday(),real=realizedToday();const lossLimit=-(settings.capital*settings.maxloss/100);
+  const tradesLocked=used>=settings.maxtrades,lossLocked=real<=lossLimit;return {used,real,lossLimit,tradesLocked,lossLocked,locked:tradesLocked||lossLocked};}
+function renderGuard(){const g=guardStatus();$('guardbar').innerHTML=`
+  <div class="gpill ${g.tradesLocked?'locked':''}"><div class="k">Trades today</div><div class="v">${g.used} / ${settings.maxtrades}</div></div>
+  <div class="gpill ${g.lossLocked?'locked':''}"><div class="k">Realized P&L</div><div class="v ${g.real<0?'down':'up'}">₹${g.real.toFixed(0)}</div></div>
+  <div class="gpill ${g.lossLocked?'locked':''}"><div class="k">Daily loss limit</div><div class="v">₹${g.lossLimit.toFixed(0)}</div></div>
+  <div class="gpill ${g.locked?'locked':''}"><div class="k">Status</div><div class="v">${g.locked?'🔒 LOCKED':'🟢 OK'}</div></div>`;}
+
+// ════════ CALCULATOR ════════
+function calc(){
+  const entry=+$('t-entry').value,stop=+$('t-stop').value,target=+$('t-target').value;
+  const riskBudget=settings.capital*settings.risk/100;const g=guardStatus();
+  let errs=[],warns=[],perShare=0,qty=0,totRisk=0,posVal=0,rr=0;
+  if(entry>0&&stop>0){perShare=entry-stop;
+    if(perShare<=0)errs.push("Stop-loss must be BELOW entry (long-only).");
+    else{qty=Math.floor(riskBudget/perShare);totRisk=qty*perShare;posVal=qty*entry;
+      if(target>0)rr=(target-entry)/perShare;
+      if(qty<1)errs.push("Stop too far for your risk budget — even 1 share exceeds max risk. Tighten stop or pick a cheaper stock.");
+      if(posVal>settings.capital)warns.push("Position value ₹"+posVal.toFixed(0)+" exceeds capital — needs margin. Reduce size.");
+      if(target>0&&target<=entry)errs.push("Target must be above entry.");
+      if(target>0&&rr>0&&rr<settings.minrr)warns.push("Reward:Risk "+rr.toFixed(2)+"R is below your minimum "+settings.minrr+"R. Weak trade — consider skipping.");}}
+  $('calc-readout').innerHTML=`
+    <div class="stat"><div class="k">Risk budget (${settings.risk}%)</div><div class="v">₹${riskBudget.toFixed(0)}</div></div>
+    <div class="stat"><div class="k">Risk / share</div><div class="v">₹${perShare>0?perShare.toFixed(2):'—'}</div></div>
+    <div class="stat"><div class="k">Quantity</div><div class="v ${qty>0?'good':''}">${qty>0?qty:'—'}</div></div>
+    <div class="stat"><div class="k">Total risk</div><div class="v">₹${totRisk>0?totRisk.toFixed(0):'—'}</div></div>
+    <div class="stat"><div class="k">Position value</div><div class="v">₹${posVal>0?posVal.toFixed(0):'—'}</div></div>
+    <div class="stat"><div class="k">Reward:Risk</div><div class="v ${rr>=settings.minrr?'good':(rr>0?'warn':'')}">${rr>0?rr.toFixed(2)+'R':'—'}</div></div>`;
+  if(g.locked)errs.unshift(g.tradesLocked?"🔒 Max trades for today reached. Stop.":"🔒 Daily loss limit hit. Done for today — protect your capital.");
+  if(!checkDone())warns.push("Pre-market checklist isn't complete (tab ①).");
+  if(entry>0&&stop>0&&!rulesMet())warns.push("Not all entry-rule boxes are ticked — is this really your setup?");
+  const al=$('calc-alert');al.className='alertbox';
+  if(errs.length){al.classList.add('show','err');al.innerHTML='⛔ '+errs.join('<br>⛔ ');}
+  else if(warns.length){al.classList.add('show','warn');al.innerHTML='⚠ '+warns.join('<br>⚠ ');}
+  else if(qty>0){al.classList.add('show','ok');al.innerHTML='✅ Fits your risk rules. Size '+qty+' shares · stop ₹'+stop+' · target ₹'+(target||'—')+'.';}
+  $('open-btn').disabled=g.locked||errs.length>0||qty<1;
+  return {entry,stop,target,qty,totRisk,posVal,rr};
+}
+
+// ════════ OPEN / CLOSE ════════
+function openTrade(){
+  const c=calc();const stock=$('t-stock').value.trim().toUpperCase();
+  if(!stock){alert("Enter a stock symbol.");return;} if(c.qty<1)return;
+  opens.push({id:Date.now(),day:dayKey,mode,stock,setup:$('t-setup').value.trim(),entry:c.entry,stop:c.stop,target:c.target,
+    qty:c.qty,risk:c.totRisk,rr:c.rr,rulesMet:rulesMet(),notes:$('t-notes').value.trim(),opened:new Date().toLocaleString('en-IN'),
+    alertedStop:false,alertedTgt:false,cur:c.entry});
+  persist();['t-stock','t-setup','t-entry','t-stop','t-target','t-notes'].forEach(id=>$(id).value='');ruleState={};renderRules();
+  renderGuard();calc();go('open');pollOpen();
+}
+function renderOpen(){
+  const el=$('open-list');
+  if(!opens.length){el.innerHTML='<div class="empty">No open positions. Plan a trade in tab ②.</div>';return;}
+  el.innerHTML='<table><thead><tr><th>Stock</th><th>Qty</th><th>Entry</th><th>Live</th><th>Stop</th><th>Target</th><th>Live P&L</th><th>Exit & close</th></tr></thead><tbody>'+
+    opens.map(o=>{const cur=o.cur||o.entry;const pnl=(cur-o.entry)*o.qty;
+      const dStop=cur-o.stop,dTgt=(o.target||0)-cur;
+      return `<tr>
+      <td><b>${o.stock}</b><div class="smol">${o.setup||''}</div></td>
+      <td>${o.qty}</td><td>₹${o.entry}</td>
+      <td class="live-px">${cur?'₹'+cur.toFixed(2):'—'}</td>
+      <td class="down">₹${o.stop}<div class="smol">${dStop>=0?'+':''}${dStop.toFixed(2)}</div></td>
+      <td class="up">₹${o.target||'—'}${o.target?`<div class="smol">${dTgt.toFixed(2)} to go</div>`:''}</td>
+      <td class="${pnl>=0?'up':'down'}">₹${pnl.toFixed(0)}</td>
+      <td class="inline">
+        <input type="number" step="0.05" placeholder="exit ₹" id="ex${o.id}" value="${cur?cur.toFixed(2):''}" style="width:84px;"/>
+        <select id="rule${o.id}" style="width:auto;"><option value="${o.rulesMet?1:0}">${o.rulesMet?'Followed rule':'Broke rule'}</option><option value="1">Followed rule</option><option value="0">Broke rule</option></select>
+        <button class="btn-ghost" onclick="closeTrade(${o.id})">Close</button>
+      </td></tr>`;}).join('')+'</tbody></table>';
+}
+function closeTrade(id){
+  const o=opens.find(x=>x.id===id);if(!o)return;const exit=+$('ex'+id).value;
+  if(!exit){alert("Enter the exit price.");return;}
+  const pnl=(exit-o.entry)*o.qty,rMult=o.risk>0?pnl/o.risk:0,followed=$('rule'+id).value==='1';
+  trades.push({...o,exit,pnl,rMult,followed,result:pnl>=0?'win':'loss',closed:new Date().toLocaleString('en-IN')});
+  opens=opens.filter(x=>x.id!==id);persist();renderOpen();renderGuard();
+}
+
+// ════════ LIVE POLLING + ALERTS ════════
+let pollTimer=null;
+async function pollOpen(){
+  if(!opens.length||!isUpstoxTokenValid()){$('poll-note').textContent=opens.length?'(connect Upstox for live tracking)':'';return;}
+  const keys=[...new Set(opens.map(o=>UPSTOX_KEY_MAP[o.stock]).filter(Boolean))];
+  const data=await fetchUpstoxQuotes(keys);
+  if(data){opens.forEach(o=>{const k=UPSTOX_KEY_MAP[o.stock];const v=k&&data[k];if(v&&v.last_price){o.cur=v.last_price;
+    if(!o.alertedStop&&o.cur<=o.stop){o.alertedStop=true;fireNotif('⛔ STOP HIT — '+o.stock,`${o.stock} fell to ₹${o.cur.toFixed(2)} (stop ₹${o.stop}). Exit now per your plan.`,'stop');}
+    if(o.target&&!o.alertedTgt&&o.cur>=o.target){o.alertedTgt=true;fireNotif('🎯 TARGET HIT — '+o.stock,`${o.stock} reached ₹${o.cur.toFixed(2)} (target ₹${o.target}). Consider booking/trailing.`,'tgt');}
+  }});persistLocal();
+    $('poll-note').textContent='⚡ live · '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    if($('p-open').classList.contains('active'))renderOpen();}
+}
+setInterval(()=>{pollOpen();
+  if(isUpstoxTokenValid()&&(Object.keys(wlAlerts).length||$('p-prep').classList.contains('active')))pollWatchlist();
+},15000);
+
+// ════════ JOURNAL ════════
+function renderJournal(){
+  const el=$('journal-list');
+  if(!trades.length){el.innerHTML='<div class="empty">No closed trades yet.</div>';return;}
+  el.innerHTML='<table><thead><tr><th>Date</th><th>Stock</th><th>Mode</th><th>Qty</th><th>Entry→Exit</th><th>P&L</th><th>R</th><th>Result</th><th>Rule</th><th></th></tr></thead><tbody>'+
+    [...trades].reverse().map(t=>`<tr>
+      <td class="smol">${t.day}</td><td><b>${t.stock}</b><div class="smol">${t.setup||''}</div></td>
+      <td class="smol">${t.mode||'paper'}</td><td>${t.qty}</td><td>₹${t.entry} → ₹${t.exit}</td>
+      <td class="${t.pnl>=0?'up':'down'}">₹${t.pnl.toFixed(0)}</td><td>${t.rMult.toFixed(2)}R</td>
+      <td><span class="tag ${t.result}">${t.result.toUpperCase()}</span></td>
+      <td><span class="tag ${t.followed?'kept':'broke'}">${t.followed?'kept':'broke'}</span></td>
+      <td><button class="btn-ghost" onclick="delTrade(${t.id})">✕</button></td></tr>`).join('')+'</tbody></table>';
+}
+function delTrade(id){trades=trades.filter(t=>t.id!==id);persist();renderJournal();}
+
+// ════════ STATS ════════
+let chart;
+function renderStats(){
+  const ro=$('stats-readout'),n=trades.length;
+  if(!n){ro.innerHTML='<div class="empty">Log trades to see stats.</div>';$('rule-readout').innerHTML='';if(chart)chart.destroy();return;}
+  const wins=trades.filter(t=>t.pnl>0),losses=trades.filter(t=>t.pnl<0),tot=trades.reduce((s,t)=>s+t.pnl,0);
+  const avgW=wins.length?wins.reduce((s,t)=>s+t.pnl,0)/wins.length:0,avgL=losses.length?losses.reduce((s,t)=>s+t.pnl,0)/losses.length:0;
+  ro.innerHTML=`
+    <div class="stat"><div class="k">Trades</div><div class="v">${n}</div></div>
+    <div class="stat"><div class="k">Win rate</div><div class="v">${(wins.length/n*100).toFixed(0)}%</div></div>
+    <div class="stat"><div class="k">Total P&L</div><div class="v ${tot>=0?'good':'bad'}">₹${tot.toFixed(0)}</div></div>
+    <div class="stat"><div class="k">Avg win</div><div class="v good">₹${avgW.toFixed(0)}</div></div>
+    <div class="stat"><div class="k">Avg loss</div><div class="v bad">₹${avgL.toFixed(0)}</div></div>
+    <div class="stat"><div class="k">Expectancy/trade</div><div class="v ${tot/n>=0?'good':'bad'}">₹${(tot/n).toFixed(0)}</div></div>`;
+  let cum=0;const pts=trades.map(t=>(cum+=t.pnl));
+  if(chart)chart.destroy();
+  chart=new Chart($('equity-chart'),{type:'line',data:{labels:trades.map((_,i)=>i+1),datasets:[{data:pts,borderColor:'#2ecc71',backgroundColor:'rgba(46,204,113,.1)',fill:true,tension:.2,pointRadius:2}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{grid:{color:'#243530'},ticks:{color:'#7c8c85'}},y:{grid:{color:'#243530'},ticks:{color:'#7c8c85'}}}}});
+  const kept=trades.filter(t=>t.followed),broke=trades.filter(t=>!t.followed),sum=a=>a.reduce((s,t)=>s+t.pnl,0);
+  $('rule-readout').innerHTML=`
+    <div class="stat"><div class="k">Rule-followed</div><div class="v">${kept.length}</div></div>
+    <div class="stat"><div class="k">P&L when followed</div><div class="v ${sum(kept)>=0?'good':'bad'}">₹${sum(kept).toFixed(0)}</div></div>
+    <div class="stat"><div class="k">Rule-broken</div><div class="v">${broke.length}</div></div>
+    <div class="stat"><div class="k">P&L when broken</div><div class="v ${sum(broke)>=0?'good':'bad'}">₹${sum(broke).toFixed(0)}</div></div>`;
+}
+
+// ════════ DATA OPS ════════
+function exportCSV(){
+  if(!trades.length){alert("No trades to export.");return;}
+  const head=["day","mode","stock","setup","qty","entry","stop","target","exit","pnl","rMultiple","result","ruleFollowed","notes"];
+  const rows=trades.map(t=>[t.day,t.mode||'paper',t.stock,t.setup,t.qty,t.entry,t.stop,t.target,t.exit,t.pnl.toFixed(2),t.rMult.toFixed(2),t.result,t.followed?'yes':'no',(t.notes||'').replace(/,/g,';')]);
+  const csv=[head,...rows].map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='trade-journal.csv';a.click();
+}
+function wipeAll(){if(confirm("Erase ALL local data (settings, trades, journal)?")){Object.values(K).forEach(k=>localStorage.removeItem(k));location.reload();}}
+
+// ════════ CLOCK / STATUS ════════
+function tick(){const ist=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+  $('clock-time').textContent=ist.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  const m=ist.getHours()*60+ist.getMinutes(),wd=ist.getDay()>=1&&ist.getDay()<=5;
+  $('market-state').textContent=!wd?'closed (weekend)':(m>=555&&m<930?'OPEN':'closed');}
+function updateConnStatus(){
+  const uOk=isUpstoxTokenValid(),uHas=!!getUpstoxToken();
+  const ud=uOk?'green':(uHas?'yellow':'red'),ut=uOk?'⚡ Upstox Live':(uHas?'⚡ Token expired':'⚡ Connect Upstox');
+  $('upstox-dot').className='dot '+ud;$('upstox-status-text').textContent=ut;
+  $('upstox-dot2').className='dot '+ud;$('upstox-status-text2').textContent=uOk?'Connected — live':(uHas?'Token expired':'Not connected');
+  const nOk=notifAllowed();
+  $('notif-dot').className='dot green';$('notif-status-text').textContent=nOk?'🔔 Desktop + in-app':'🔔 In-app alerts';
+  $('notif-dot2').className='dot '+(nOk?'green':'yellow');$('notif-status-text2').textContent=nOk?'Desktop + in-app on':'In-app + sound on (desktop blocked on file://)';
+  const cOk=!!fbUid;$('cloud-dot').className='dot '+(cOk?'green':'red');$('cloud-status-text').textContent=cOk?'☁ Synced':'☁ Local only';
+}
+
+// ════════ RENDER ALL ════════
+function renderAll(){renderChecklist();renderWatchlist();renderGuard();renderRules();renderOpen();renderJournal();updateConnStatus();updateModeBadge();}
+
+// ════════ INIT ════════
+(function init(){
+  loadSettingsUI();renderAll();notifReady=notifAllowed();updateConnStatus();
+  const fbCfg=getFbConfig();if(fbCfg){$('fb-config').value=JSON.stringify(fbCfg,null,0);initFb(fbCfg);$('fb-login').style.display='block';}
+  calc();tick();setInterval(tick,1000);
+  if(isUpstoxTokenValid()){refreshWatchlist();loadIndices();pollOpen();computeORB(false);}
+  else if(!sessionStorage.getItem('upstox_prompted')){sessionStorage.setItem('upstox_prompted','1');setTimeout(showUpstoxModal,700);}
+})();
+</script>
+</body>
+</html>
